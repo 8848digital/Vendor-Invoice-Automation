@@ -43,8 +43,10 @@ def _supplier_active(sup):
 
 def _supplier_identified(sup):
 	"""V-INT-06: GSTIN and PAN on the master, both real fields under india_compliance."""
-	return row("V-INT-06", STAGE, ERROR, verdict(bool(sup.gstin and sup.pan)),
-		"Supplier master is missing a GSTIN or PAN.",
+	ok = bool(sup.gstin and sup.pan)
+	return row("V-INT-06", STAGE, ERROR, verdict(ok),
+		"Supplier master carries both a GSTIN and a PAN." if ok
+		else "Supplier master is missing a GSTIN or PAN.",
 		"GSTIN + PAN on file", f"gstin={sup.gstin} pan={sup.pan}")
 
 

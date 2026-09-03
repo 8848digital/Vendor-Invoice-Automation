@@ -12,7 +12,18 @@ from frappe.utils import flt
 from india_compliance.gst_india.doctype.gstin.gstin import validate_gstin_status
 from india_compliance.gst_india.utils import get_state
 
-from .base import ERROR, FAIL, INFO, PASS, SKIP, WARN, row, verdict
+from .base import (
+	ERROR,
+	FAIL,
+	INFO,
+	MONETARY_AGREEMENT_TOLERANCE,
+	PASS,
+	SKIP,
+	WARN,
+	row,
+	verdict,
+)
+from .gst_2b import inward_supply
 from .gst_utils import gstin_doc, gstin_error, pan_of
 
 STAGE = "gst"
@@ -32,11 +43,15 @@ def run(p):
 	out.append(_supplier_pan(p, doc_gstin))
 	out.append(_place_of_supply(p, doc_gstin))
 	out.append(_hsn_registered(p))
-	out.append(row("V-GST-11a", STAGE, ERROR, SKIP,
-		"E-invoice mandate check needs a per-supplier turnover flag; no such field on Supplier."))
-	out.append(row("V-GST-15", STAGE, ERROR, SKIP,
-		"Reverse charge needs `is_reverse_charge` on the payload; not in the contract yet."))
-	out.append(_gstr_2b(p))
+
+	# Requirement 9's remaining rules, all off the supplier's own filing. Without a 2B
+	# row none of them can run, and V-GST-16 already says exactly that — so they stay
+	# quiet rather than repeating it three times.
+	supply = inward_supply(p)
+	out.append(_reflected_in_2b(p, supply))
+	if supply:
+		out.append(_return_filing_status(p, supply))
+		out.append(_reverse_charge(p, supply))
 	return out
 
 
@@ -49,13 +64,10 @@ def _status_checks(doc_gstin, invoice_date, skip=False):
 	"""
 	doc = None if skip else gstin_doc(doc_gstin, invoice_date)
 	if not doc:
-		return [
-			row(cid, STAGE, ERROR, SKIP,
-				f"No GSTIN record for {doc_gstin}, so its {what} is unknown — not invalid. "
-				"Enable the GSTN API in GST Settings to populate it.")
-			for cid, what in (("V-GST-03", "current status"),
-				("V-GST-04a", "status as on the invoice date"))
-		]
+		return [row("V-GST-03", STAGE, ERROR, SKIP,
+			f"No GSTIN record for {doc_gstin}, so its status — now and as on the invoice "
+			"date (V-GST-04a) — is unknown, not invalid. Enable the GSTN API in GST "
+			"Settings to populate it.")]
 
 	out = [row("V-GST-03", STAGE, ERROR, verdict(doc.status == "Active"),
 		f"Supplier GSTIN status is {doc.status}.", "Active", doc.status)]
@@ -79,7 +91,9 @@ def _composition(p):
 			"Supplier is not under the composition scheme.", found=category)
 	taxes = sum(flt(p.get(k)) for k in ("cgst", "sgst", "igst", "cess"))
 	return row("V-GST-05", STAGE, ERROR, verdict(not taxes),
-		"Composition supplier has charged GST.", "zero tax", f"{taxes:.2f}")
+		"Composition supplier has charged GST." if taxes
+		else "Composition supplier has correctly charged no GST.",
+		"zero tax", f"{taxes:.2f}")
 
 
 def _supplier_pan(p, doc_gstin):
@@ -90,8 +104,11 @@ def _supplier_pan(p, doc_gstin):
 		return row("V-GST-07", STAGE, ERROR, FAIL,
 			"Could not read a PAN from both the document GSTIN and the Supplier master.",
 			master_pan, doc_pan)
-	return row("V-GST-07", STAGE, ERROR, verdict(doc_pan == master_pan),
-		"PAN embedded in the invoice GSTIN differs from the supplier's.", master_pan, doc_pan)
+	ok = doc_pan == master_pan
+	return row("V-GST-07", STAGE, ERROR, verdict(ok),
+		"PAN embedded in the invoice GSTIN matches the supplier's." if ok
+		else "PAN embedded in the invoice GSTIN differs from the supplier's.",
+		master_pan, doc_pan)
 
 
 def _place_of_supply(p, doc_gstin):
@@ -115,7 +132,8 @@ def _place_of_supply(p, doc_gstin):
 		not intra_expected and inter_found and not intra_found
 	)
 	return row("V-GST-12/13", STAGE, ERROR, verdict(ok),
-		f"Tax type does not match the place of supply ({get_state(pos)}).",
+		f"Tax type matches the place of supply ({get_state(pos)})." if ok
+		else f"Tax type does not match the place of supply ({get_state(pos)}).",
 		"CGST+SGST" if intra_expected else "IGST",
 		"CGST+SGST" if intra_found else ("IGST" if inter_found else "no tax"))
 
@@ -135,13 +153,74 @@ def _hsn_registered(p):
 		"registered HSN/SAC", missing or None)
 
 
-def _gstr_2b(p):
-	"""V-GST-16: non-blocking by design. Stamps whether the supplier has filed this
-	invoice; absence before the filing date is normal, not a defect."""
-	gstin, bill_no = p.get("supplier_gstin"), p.get("invoice_no")
-	if not (gstin and bill_no):
+def _reflected_in_2b(p, supply):
+	"""V-GST-16 — is this invoice reflected in GSTR-2B, and does it agree with ours?
+
+	Info severity by design. Absence before the supplier's filing date is normal, not
+	a defect, and holding every invoice until 2B catches up would stall the books.
+	"""
+	if not (p.get("supplier_gstin") and p.get("invoice_no")):
 		return row("V-GST-16", STAGE, INFO, SKIP, "No supplier GSTIN or bill number to reconcile.")
-	hit = frappe.db.exists("GST Inward Supply", {"supplier_gstin": gstin, "bill_no": bill_no})
-	return row("V-GST-16", STAGE, INFO, PASS,
-		"Matched in GSTR-2A/2B." if hit else "Not yet in GSTR-2A/2B — normal before the supplier files.",
-		"a GST Inward Supply row", hit or "none")
+	if not supply:
+		return row("V-GST-16", STAGE, INFO, PASS,
+			"Not yet in GSTR-2A/2B — normal before the supplier files.",
+			"a GST Inward Supply row", "none")
+
+	off = [
+		f"{field}: 2B {flt(supply.get(field)):.2f} vs invoice {flt(p.get(field)):.2f}"
+		for field in ("taxable_value", "cgst", "sgst", "igst", "cess")
+		if abs(flt(supply.get(field)) - flt(p.get(field))) > MONETARY_AGREEMENT_TOLERANCE
+	]
+	return row("V-GST-16", STAGE, INFO, verdict(not off),
+		"Invoice is in GSTR-2B but the values disagree with the document." if off
+		else "Invoice is reflected in GSTR-2B and the values agree.",
+		"2B values match the invoice", off or supply.get("name"))
+
+
+def _return_filing_status(p, supply):
+	"""V-GST-17 — has the supplier actually filed the return carrying this invoice?
+
+	Two independent sources: the flags on the 2B row itself, and india_compliance's
+	`get_gstr_1_filed_upto`, which answers for the supplier generally. Warning, not
+	Error — an unfiled supplier is a collections problem and an ITC-timing problem,
+	not an invalid invoice.
+	"""
+	from india_compliance.gst_india.doctype.gstin.gstin import get_gstr_1_filed_upto
+
+	if supply and (supply.get("gstr_1_filled") or supply.get("is_supplier_return_filed")):
+		return row("V-GST-17", STAGE, WARN, PASS,
+			"Supplier has filed the GSTR-1 carrying this invoice.",
+			"GSTR-1 filed", supply.get("gstr_1_filing_date") or supply.get("sup_return_period"))
+
+	filed_upto = None
+	try:
+		filed_upto = get_gstr_1_filed_upto(p.get("supplier_gstin"))
+	except Exception:
+		# No GSTIN row, or the GSTN API is disabled. Unknown, not unfiled.
+		pass
+
+	return row("V-GST-17", STAGE, WARN, FAIL,
+		"Invoice is in GSTR-2B but the supplier has not filed the return carrying it.",
+		"GSTR-1 filed", f"filed upto {filed_upto}" if filed_upto else "not filed")
+
+
+def _reverse_charge(p, supply):
+	"""V-GST-15 — reverse charge, now that there is something to compare against.
+
+	`is_reverse_charge` is a real Purchase Invoice field under india_compliance
+	(PURCHASE_REVERSE_CHARGE_FIELDS), and the supplier states its own answer in 2B.
+	A disagreement decides who pays the tax, so it is blocking.
+	"""
+	claimed = p.get("is_reverse_charge")
+	theirs = bool(supply.get("is_reverse_charge"))
+	if claimed is None:
+		return row("V-GST-15", STAGE, WARN, PASS,
+			"Invoice does not state reverse charge; taking the supplier's filing.",
+			found="reverse charge" if theirs else "forward charge")
+
+	ok = bool(claimed) == theirs
+	return row("V-GST-15", STAGE, ERROR, verdict(ok),
+		"Invoice and the supplier's GSTR-1 filing agree on reverse charge." if ok
+		else "Invoice and the supplier's GSTR-1 filing disagree on reverse charge.",
+		"reverse charge" if theirs else "forward charge",
+		"reverse charge" if claimed else "forward charge")

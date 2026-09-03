@@ -103,7 +103,8 @@ alone. `validation_blocks()` returns the names over the API.
 | --- | --- |
 | **BUILT** | Runs today at full fidelity |
 | **PARTIAL** | Runs, but covers less than the spec asks |
-| **SKIPPED** | Emits `result: "Skipped"` — an unbuilt utility, a missing field, or genuinely unknown data |
+| **SKIPPED** | Emits `result: "Skipped"` — genuinely unknown data for *this* invoice |
+| **SILENT** | Emits no row at all. Held by decision, or its cause is already reported by another row — see the rule below |
 | **CALLER** | Jarvis owns it and passes the result in. **Never appears in `checks[]`** |
 | **DROPPED** | Impossible while stateless, and unassigned |
 | **REMOVED** | Deliberately deleted from scope |
@@ -112,6 +113,18 @@ alone. `validation_blocks()` returns the names over the API.
 > **On CALLER rows:** the API does not accept an attestation that Jarvis ran these. There
 > is no `intake_ok: true` field and there should not be — emitting `Pass` on someone
 > else's word would launder an unverified claim into our audit trail.
+
+> **What earns a `Skipped` row.** One rule: *a human could act on it, for this invoice.*
+> A row that says the same thing in every response forever is a constant, not
+> information, and it buries the two skips that do matter. So three kinds are silent:
+> **held by decision** (V-DUP-05/06, V-GST-11a — recorded here instead), **absent
+> optional input** (V-DUP-02 with no IRN), and **a cause another row already reports**
+> (V-GST-15/17 and V-ITC-01 when there is no 2B row — V-GST-16 says so). Where several
+> checks share one cause, one row carries it and names the others: no `qr_payload`
+> yields a single V-FAKE-02, not five identical rows.
+>
+> **Silent is not Pass.** A silent check appears in neither `checks[]`, `skipped[]`, nor
+> `failed[]`, so nothing claims it succeeded.
 
 ### Stage 0 — Intake · `validations/intake.py`
 
@@ -132,7 +145,7 @@ Extraction itself is the caller's job. Only the post-extraction validations live
 | ID | Asserts | Our function | Calls | Status |
 | --- | --- | --- | --- | --- |
 | V-EXT-01 | Payload schema conformance | — | — | **PENDING** — only `dict`/JSON shape is enforced today |
-| V-EXT-02 | Extracted fields agree with QR/e-invoice ground truth | — | future `qr.py` | **PENDING** |
+| V-EXT-02 | Extracted fields agree with QR/e-invoice ground truth | `einvoice._agrees_with_document` | `jwt.decode` | **BUILT** — see Stage 2c (V-FAKE-04) |
 | V-EXT-03 | qty × rate = amount, per line | `extraction.run` | `frappe.utils.flt` | **BUILT** |
 | V-EXT-04 | Σtaxable + Σtax + round_off = grand_total (±₹1) | `extraction.run` | `Settings.monetary_agreement_tolerance` | **BUILT** — total recomputed, never trusted |
 | V-EXT-05 | CGST+SGST xor IGST, never both | `extraction.run` | — | **BUILT** |
@@ -142,27 +155,52 @@ Extraction itself is the caller's job. Only the post-extraction validations live
 | V-EXT-09 | Invoice date in an open Fiscal Year | `extraction._fiscal_year` | `erpnext.accounts.utils.get_fiscal_year` | **PARTIAL** — Period Closing Voucher not consulted |
 | V-EXT-10 | `company_gstin` is a registered company GSTIN | `extraction._company_gstin` | `india_compliance.gst_india.utils.get_gstin_list(company, "Company")` | **BUILT** |
 
-### Stage 2 — Duplicate & fraud · `validations/fraud.py`
+### Stage 2a — Duplicate · `validations/duplicate.py` — **requirement 7**
 
-Every layer runs; it does not stop at the first hit.
+One query fetches every Purchase Invoice carrying this bill number for this supplier;
+the four key fields are then compared in Python, because "same number, different
+amount" is a different answer from "same everything". No `docstatus` filter — a
+cancelled invoice was still seen.
 
 | ID | Asserts | Our function | Calls | Status |
 | --- | --- | --- | --- | --- |
-| V-DUP-02 | Same IRN exists elsewhere | `fraud.run` | — | **SKIPPED** — Purchase Invoice has no `irn` column even with india_compliance; see §4 |
-| V-DUP-03 | Same (GSTIN, invoice no, date, total) exists | `fraud.run` | — | **DROPPED** — needs upload history |
-| V-DUP-04 | Same supplier + `bill_no` already on a PI (incl. cancelled) | `fraud.run` | `frappe.get_all("Purchase Invoice", …)` — no docstatus filter | **BUILT** |
-| V-DUP-05 | Invoice no. differs by ≤2 chars from an existing one | `fraud.run` | — | **DROPPED** — needs upload history |
-| V-DUP-07 | Same invoice no., different amount | `fraud.run` | — | **DROPPED** — needs upload history |
-| V-FAKE-01 | Document GSTIN = Supplier master GSTIN | `fraud.run` | `Supplier.gstin` | **BUILT** |
-| V-FAKE-02 | QR JWS signature verifies against NIC public key | `fraud.run` | future `qr.py` + NIC cert | **SKIPPED** — highest-value unbuilt piece, see §6 |
-| V-FAKE-04 | QR payload = document's own header values | `fraud.run` | future `qr.py` | **SKIPPED** |
-| V-FAKE-07 | PAN in GSTIN = Supplier PAN | `fraud.run` | `gst_utils.pan_of` + `Supplier.pan` | **BUILT** — meaningful now that `pan` is a real, independent field |
+| V-DUP-01 | Same GSTIN + invoice no + date + amount already booked | `duplicate._exact` | `frappe.get_all("Purchase Invoice", …)` on `supplier_gstin`/`bill_no`/`bill_date`/`grand_total` | **BUILT** — requirement 7's reject condition |
+| V-DUP-02 | Same IRN reported against a different invoice | `duplicate._irn` | `GST Inward Supply.irn_number` | **BUILT** — 2B is the only store of an *inbound* IRN. Silent when the invoice carries no IRN |
+| V-DUP-05 | Same QR seen before | — | — | **SILENT** — needs an upload history; decision on hold |
+| V-DUP-06 | Same file hash seen before | — | — | **SILENT** — needs an upload history; decision on hold |
+| V-DUP-07 | Invoice number seen before with different details | `duplicate._same_number_different_amount` | same query as V-DUP-01 | **BUILT** (Warning) — names which fields differ |
 
-> **V-DUP-03/05/07 are the same capability as V-INT-03.** All four need a history of prior
-> uploads, and Jarvis now owns that history. If it stores the extracted header alongside
-> the file hash, these three come nearly free on the same index — and they catch what a
-> hash cannot: the *same invoice re-sent as a different file* (rescanned, re-exported,
-> one pixel changed). **Unassigned today — decide who owns them.**
+> **V-DUP-05/06 are one decision, not two.** Both need a `Vendor Invoice Log` keyed by
+> `qr_hash` / `file_hash`; a unique index would then enforce them with no comparison
+> code at all. Held deliberately — the rows say so rather than passing silently.
+
+### Stage 2b — Identity · `validations/fraud.py`
+
+| ID | Asserts | Our function | Calls | Status |
+| --- | --- | --- | --- | --- |
+| V-FAKE-01 | Document GSTIN = Supplier master GSTIN | `fraud._gstin_is_the_suppliers` | `Supplier.gstin` | **BUILT** |
+| V-FAKE-07 | PAN in GSTIN = Supplier PAN | `fraud._pan_matches` | `gst_utils.pan_of` + `Supplier.pan` | **BUILT** — a same-PAN, different-state GSTIN is caught by V-FAKE-01, not here |
+
+### Stage 2c — e-Invoice · `validations/einvoice.py` — **requirement 8**
+
+The supplier's signed QR (`payload["qr_payload"]`), verified offline. **Decoding and
+verifying are separate:** decoding proves the printed page agrees with its own QR
+(catches alteration); only the RSA signature check proves NIC issued it (catches
+forgery). Decoding always runs; verification needs a certificate and reports `Skipped`
+without one — never `Pass`.
+
+| ID | Asserts | Our function | Calls | Status |
+| --- | --- | --- | --- | --- |
+| V-FAKE-02 | QR JWS signature verifies against NIC's certificate | `einvoice._signature` | `jwt.decode` + `cryptography.x509`, cert from `base.nic_public_certificate()` | **BUILT** — `Skipped` until `via_nic_public_certificate` is in `site_config.json` |
+| V-FAKE-04 | QR header values = the printed document's | `einvoice._agrees_with_document` | `jwt.decode` | **BUILT** — invoice no, total, date |
+| V-GST-08 | Seller GSTIN on the QR = the document's | `einvoice._seller_gstin` | — | **BUILT** |
+| V-GST-09 | Buyer GSTIN on the QR = our company GSTIN | `einvoice._buyer_gstin` | — | **BUILT** — an e-invoice issued to someone else is not ours to book |
+| V-GST-10 | IRN on the document = IRN inside the signed QR | `einvoice._irn` | — | **BUILT** |
+
+> **Why not NIC's `GetIRNDetails`?** `EInvoiceAPI.get_e_invoice_by_irn` sends
+> `gstin: company_gstin` and is scoped to invoices *we* generated — india_compliance's
+> own client lists `2283: "IRN details cannot be provided as it is generated more than
+> 2 days ago"` as expected. It cannot verify a supplier's IRN. The QR can.
 
 ### Stage 3 — GST · `validations/gst.py`
 
@@ -176,11 +214,14 @@ The app's own `gstin.py` stand-in has been **deleted**.
 | V-GST-04a | GSTIN Active **as on the invoice date** | `gst.run` | `…doctype.gstin.gstin.validate_gstin_status(doc, transaction_date, throw=True)` | **BUILT** — already in india_compliance; SPEC is wrong that we must write it (§4) |
 | V-GST-05 | Composition supplier → zero tax | `gst._composition` | `Supplier.gst_category == "Registered Composition"` | **BUILT** |
 | V-GST-07 | PAN in GSTIN = Supplier PAN | `gst._supplier_pan` | `Supplier.pan` + `india_compliance…is_valid_pan` | **BUILT** |
-| V-GST-11a | E-invoice-mandated supplier carries an IRN | `gst.run` | needs a per-supplier turnover flag | **SKIPPED** — no such field on Supplier |
+| V-GST-11a | E-invoice-mandated supplier carries an IRN | — | needs a per-supplier turnover flag | **SILENT** — no such field on Supplier |
+| V-GST-14b | Tax rate correct | `po_match` | `Purchase Order Item` rates | **MOVED** — a rate is only wrong against a reference; compared to the order in Stage 4a, so no row here |
 | V-GST-12/13 | Place of supply real; CGST/SGST vs IGST correct | `gst._place_of_supply` | `india_compliance.gst_india.utils.get_state` | **BUILT** |
 | V-GST-14 | HSN/SAC valid, tax rate matches | `gst._hsn_registered` | `GST HSN Code` DocType | **PARTIAL** — existence only; the rate half arrives with Stage 4a's PO tax comparison |
-| V-GST-15 | Reverse charge correctness | `gst.run` | — | **SKIPPED** — `is_reverse_charge` is not in the payload contract yet |
-| V-GST-16 | GSTR-2B presence | `gst._gstr_2b` | `GST Inward Supply` by `supplier_gstin` + `bill_no` | **BUILT** — Info severity, non-blocking by design |
+| V-GST-15 | Reverse charge correctness | `gst._reverse_charge` | `GST Inward Supply.is_reverse_charge` vs payload `is_reverse_charge` | **BUILT** — blocking: it decides who pays the tax |
+| V-GST-17 | Supplier has filed the GSTR-1 carrying this invoice | `gst._return_filing_status` | `GST Inward Supply.gstr_1_filled` / `is_supplier_return_filed`, `gstin.get_gstr_1_filed_upto` | **BUILT** (Warning) — unfiled is a timing problem, not an invalid invoice |
+| V-ITC-01 | ITC status: Eligible / Blocked / RCM / ISD / Ineligible / Provisional | `itc._classify` | `GST Inward Supply.itc_availability` / `reason_itc_unavailability` / `classification` | **BUILT** (Info) — GSTN's own determination, never re-derived |
+| V-GST-16 | Invoice reflected in GSTR-2B, and the values agree | `gst._reflected_in_2b` | `gst_2b.inward_supply` — taxable value + each tax head | **BUILT** — Info severity, non-blocking by design |
 
 > **Unknown is not invalid** (SPEC §8). When no local `GSTIN` row exists and the GSTN API
 > is not enabled in `GST Settings`, V-GST-03 and V-GST-04a return `Skipped` — never
@@ -200,23 +241,31 @@ Calls `frappe.db.get_value("Item", …, "is_stock_item")`.
 > match by supplier+amount → line-item overlap scoring) is **PENDING**. Today only an
 > explicitly supplied `po_number` is used.
 
-### Stage 4a — PO matching · **entirely PENDING**
+### Stage 4a — PO matching · `validations/matching.py` — **requirement 10**
 
-`matching.run()` emits `V-PO-PENDING` (Error/Fail) so a PO invoice can never
-come back green while this is unbuilt. **Fails closed by design.**
+Built on one call: `erpnext…purchase_order.mapper.make_purchase_invoice(po)` returns the
+invoice ERPNext would itself create, so "what is still billable" is never re-derived
+here. The block is then a diff, and tolerances are ERPNext's own via
+`get_allowance_for` — the same function the mappers use, so a verdict here cannot
+disagree with what `insert()` would later do.
 
-| ID | Asserts | Will call | Status |
+| ID | Asserts | Reads | Status |
 | --- | --- | --- | --- |
-| V-PO-01/02 | PO submitted, not closed/cancelled/on hold | `Purchase Order.docstatus`, `.status` | **PENDING** |
-| V-PO-03/04 | Supplier + company match the PO | `Purchase Order.supplier` / `.company` | **PENDING** |
-| V-PO-06 | PO not already fully billed | `Purchase Order.per_billed` | **PENDING** |
-| V-PO-07/08/09 | Every line resolves to a PO line | `Purchase Order Item.item_code` / `.gst_hsn_code` / `.uom` + our `Supplier Item Mapping` | **PENDING** |
-| V-PO-11 | Rate variance within tolerance | `Buying Settings.maintain_same_rate` / `_action` / `role_to_override_stop_action` | **BUILT** — `tolerance.run`, ERPNext's own 0.01 threshold |
-| V-PO-12 | Amount variance within tolerance | `Item.over_billing_allowance` → `Accounts Settings.over_billing_allowance`, waived by `role_allowed_to_over_bill` | **BUILT** — `tolerance.run`, cumulative via `Purchase Order Item.billed_amt` |
-| V-PO-10 | Qty variance within tolerance | — | **SKIPPED** — ERPNext has no Purchase Invoice qty allowance; `Stock Settings.over_delivery_receipt_allowance` governs the receipt, so it belongs to GRN matching |
-| V-PO-13 | GST rate matches PO tax template | `Purchase Order Item.igst_rate` / `.cgst_rate` / `.sgst_rate` | **PENDING** |
-| V-PO-14 | Cumulative billed + this invoice ≤ PO qty | `Purchase Order Item.billed_amt` / `.qty` | **PARTIAL** — the amount half is V-PO-12 above; qty is unavailable, see V-PO-10 |
-| V-PO-16 | No invoice lines absent from the PO | `Purchase Order Item` | **PENDING** |
+| V-PO-01 | PO exists, submitted, open, with something left to bill | the mapper's own `validation` + item `condition` | **BUILT** — a mapper refusal is a blocking Fail, never auto-created |
+| V-PO-03/04/05 | Supplier, company and currency match the PO | the mapped doc | **BUILT** |
+| V-PO-07 | Every invoice line is still billable | mapped items by `item_code` | **BUILT** — an unresolved line Skips the numeric checks rather than passing them |
+| V-PO-09 | UOM matches | mapped `uom` | **BUILT** — blocking: a different unit makes every qty comparison meaningless |
+| V-PO-10 | Quantity within tolerance | `get_allowance_for(item, "qty")` → `Item` then `Stock Settings.over_delivery_receipt_allowance` | **BUILT** — green / yellow / red |
+| V-PO-11 | Rate variance | `Buying Settings.maintain_same_rate` / `_action` / `role_to_override_stop_action`, 0.01 epsilon | **BUILT** — see the caveat below |
+| V-PO-12 | Amount within tolerance | `get_allowance_for(item, "amount")` → `Item` then `Accounts Settings.over_billing_allowance`, waived by `role_allowed_to_over_bill` | **BUILT** — green / yellow / red |
+| V-PO-06 | PO not already fully billed | the mapper's item `condition` (`billed_amt`) | **BUILT** — implicit; a fully-billed line is simply not billable, so V-PO-07 catches it |
+
+> **Rate has no percentage band, and cannot have one from ERPNext.**
+> `maintain_same_rate` is a switch against a 0.01 epsilon, not a tolerance. Requirement
+> 10's "Rate ±1%" is therefore *not expressible* under the ERPNext-settings-only
+> decision. Qty and amount percentages are real and configurable
+> (`over_delivery_receipt_allowance`, `over_billing_allowance`, global or per Item);
+> rate is exact-match-or-flag. Reopening this means a setting of our own.
 
 ### Stage 4b — Non-PO · **REMOVED**
 
@@ -232,19 +281,24 @@ and only the generic Stage 0–3 checks apply.
   that rule has not gone away; it is simply no longer this API's problem.
 - The `Expense Booking Rule` and `Recurring Expense Profile` DocTypes are now unused.
 
-### Stage 5 — GRN matching · **entirely PENDING** (3-Way only)
+### Stage 5 — GRN matching · `validations/matching.py` — **requirement 11** (3-Way only)
 
-`matching.run()` emits `V-GRN-PENDING` for 3-Way. Fails closed.
+Same shape, driven by `erpnext…purchase_receipt.mapper.make_purchase_invoice(pr)`, which
+already nets received − rejected − returned − already-invoiced. Every submitted receipt
+against the order is mapped and merged, because one invoice legitimately covers several
+partial receipts.
 
-| ID | Asserts | Will call | Status |
+| ID | Asserts | Reads | Status |
 | --- | --- | --- | --- |
-| V-GRN-02 | ≥1 submitted Purchase Receipt against this PO | `Purchase Receipt Item.purchase_order`, `docstatus=1` | **PENDING** |
-| V-GRN-03 | Received qty − already-invoiced qty ≥ this invoice's qty | `Purchase Receipt Item.received_qty` / `.qty` / `.rejected_qty` | **PENDING** |
-| V-GRN-05/06 | Item + warehouse match | `Purchase Receipt Item.item_code` / `.warehouse` | **PENDING** |
-| V-GRN-07/08 | Batch/serial availability | `Purchase Receipt Item.batch_no` / `.serial_no` | **PENDING** |
-| V-GRN-09 | Quality Inspection accepted, if required | `Purchase Receipt Item.quality_inspection` | **PENDING** |
+| V-GRN-02 | ≥1 submitted Purchase Receipt with something left to invoice | `Purchase Receipt Item.purchase_order`, `docstatus=1` | **BUILT** |
+| V-GRN-07/09/10/11/12 | Material, UOM, quantity, rate, amount vs what was received | merged mapper output | **BUILT** — shares the Stage 4a diff |
+| V-GRN-05/06/07/08 | Warehouse, batch and serial | `Purchase Receipt Item.warehouse` / `batch_no` / `serial_no` | **BUILT** — compared only where the invoice states them; silence is not a mismatch |
+| V-GRN-09 | Quality Inspection accepted | `Purchase Receipt Item.quality_inspection` | **PENDING** |
 | V-GRN-10 | PR date ≤ invoice date | `Purchase Receipt.posting_date` | **PENDING** (Warning) |
-| V-GRN-11 | Partial receipt policy | `Settings.partial_receipt_policy` | **PENDING** — the setting exists, the logic does not |
+
+> Requirement 11's traffic light is severity: exact → `Pass` (green); differs but within
+> ERPNext's allowance → `Fail`/`Warning` (yellow); beyond it → `Fail`/`Error` (red).
+> `decision.gate` already turns those into the verdict, so nothing extra was added.
 
 ### Stage 6 — Decision gate · `validations/decision.py` — **BUILT**
 
@@ -274,7 +328,7 @@ Confirmed to live **in this app's Python**, not the caller's. Jarvis only report
 | V-PI-04 | Posting date in an open period | **PENDING** |
 | V-PI-05 | Budget check passes, if enforced | **PENDING** |
 | V-PI-06 | Mandatory dimensions populated | **PENDING** |
-| V-PI-07 | `bill_no` still unique at insert time | **PENDING** — re-run V-DUP-04 |
+| V-PI-07 | `bill_no` still unique at insert time | **PENDING** — re-run the `duplicate` block |
 | V-PI-08 | `docstatus` stays 0 — assert, never auto-submit | **PENDING** |
 | V-PI-09 | TDS applied where 194Q applies | **PENDING** — `apply_tds` / `tax_withholding_group`, **not** `tax_withholding_category`; see §4 |
 | V-PI-10 | MSME due date stamped if Udyam-registered | **PENDING** |
@@ -301,8 +355,8 @@ result is under `data`.
     "review_required": true,
     "matching_mode": "2-Way",
     "exception_type": "Fraud Suspected",
-    "failed":  ["V-FAKE-01", "V-PO-PENDING"],
-    "skipped": ["V-DUP-02", "V-DUP-03", "V-FAKE-02", "V-GST-03", "V-GST-04a"],
+    "failed":  ["V-FAKE-01", "V-PO-01"],
+    "skipped": ["V-FAKE-02", "V-GST-03"],
     "checks": [
       {"check_id": "V-FAKE-01", "stage": "fraud", "severity": "Error", "result": "Fail",
        "expected": "27AAACI1195H1ZM", "found": "29AAACI1195H1ZI",
@@ -354,8 +408,9 @@ Confirmed as Jarvis's, and **absent from `checks[]`** — the API never sees the
 Jarvis's by consequence, whether or not it was chosen:
 
 - **Everything before extraction** — QR decode, e-invoice JSON/XML parse, LLM extraction.
-- **Deduplication beyond a byte-identical file.** V-DUP-03/05/07 are unassigned; only
-  V-DUP-04 survives here. A resubmitted invoice with one byte changed validates clean.
+- **Deduplication by QR or file hash.** V-DUP-05/06 need an upload history nothing
+  stores today, so a *rescanned* copy of an invoice we already booked is caught only by
+  V-DUP-01's four-field key — which is enough unless the resend also alters a field.
 - **All non-PO gating.** V-NPO-01…12 are removed; nothing here checks a non-PO invoice's
   ceiling, expense account, TDS section, or whether stock items snuck in without a PO.
 - **Reading `skipped[]`.** `ok: true` with a non-empty `skipped[]` means *nothing caught
@@ -369,17 +424,19 @@ V-EXT-10 raises rather than returning a check row.
 
 ## 6. Build order from here
 
+Requirements 7–11 are built. What is left:
+
 | # | Work | Unblocks | Needs first |
 | --- | --- | --- | --- |
-| 1 | **QR/JWS verification utility** (`qr.py`, offline, NIC public cert) | V-FAKE-02, V-FAKE-04, V-EXT-02 | NIC public certificate |
-| 2 | **Stage 4a — PO matching** | V-PO-01…16; removes `V-PO-PENDING` | — |
-| 3 | **Stage 5 — GRN matching** | V-GRN-02…11; removes `V-GRN-PENDING` | V-GRN-11 partial-receipt policy decision (SPEC §10) |
-| 4 | **Stage 7 — create the Draft PI** | V-PI-01…10 | auto-create-on-Yellow default (SPEC §10); v17 TDS model per §4 |
-| 5 | **Custom field `irn` on Purchase Invoice** | V-DUP-02 | — |
-| 6 | **Enable the GSTN API** in `GST Settings` | turns V-GST-03/04a from `Skipped` into live checks | India Compliance Account credits |
+| 1 | **Put NIC's public certificate in `site_config.json`** as `via_nic_public_certificate` | turns V-FAKE-02 from `Skipped` into real forgery detection — the highest fraud-protection-per-line-of-code left, and it is config, not code | the certificate |
+| 2 | **Set the tolerances requirement 10 asks for** — `Stock Settings.over_delivery_receipt_allowance`, `Accounts Settings.over_billing_allowance` (both are `0` today, so *any* variance is red and nothing can ever be yellow) | requirement 10/11's yellow band | a decision on the numbers |
+| 3 | **Stage 7 — create the Draft PI** | V-PI-01…10 | auto-create-on-Yellow default (SPEC §10); v17 TDS model per §4 |
+| 4 | **`Vendor Invoice Log` DocType** (`qr_hash`, `file_hash`, composite key) | V-DUP-05/06 — with unique indexes, almost no code | the held decision |
+| 5 | **Enable the GSTN API** in `GST Settings` | V-GST-03/04a from `Skipped` to live; keeps GSTR-2B current, which V-GST-15/16/17 and V-ITC-01 all read | India Compliance Account credits |
+| 6 | **Quality Inspection + PR-date checks** | V-GRN-09, V-GRN-10 | — |
 
-Step 1 is first for the reason SPEC §9 gives: highest fraud-protection-per-line-of-code
-in the project, and it needs no external service.
+Items 1 and 2 are configuration, not code, and both change validation outcomes
+materially. Do them before reading any verdict as authoritative.
 
 ---
 
