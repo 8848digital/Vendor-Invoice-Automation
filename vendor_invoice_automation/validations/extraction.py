@@ -47,8 +47,10 @@ def _header_arithmetic(p, tol):
 	taxes = sum(flt(p.get(k)) for k in ("cgst", "sgst", "igst", "cess"))
 	computed = flt(p.get("taxable_value")) + taxes + flt(p.get("round_off"))
 	claimed = flt(p.get("grand_total"))
-	return row("V-EXT-04", STAGE, ERROR, verdict(abs(computed - claimed) <= tol),
-		"Header total does not reconcile with taxable value + tax + round off.",
+	ok = abs(computed - claimed) <= tol
+	return row("V-EXT-04", STAGE, ERROR, verdict(ok),
+		"Header total reconciles with taxable value + tax + round off." if ok
+		else "Header total does not reconcile with taxable value + tax + round off.",
 		f"{computed:.2f}", f"{claimed:.2f}")
 
 
@@ -59,7 +61,8 @@ def _tax_split(p):
 	inter = flt(p.get("igst"))
 	coherent = not (intra and inter) and (bool(intra) != bool(inter) or not taxes)
 	return row("V-EXT-05", STAGE, ERROR, verdict(coherent),
-		"Tax split is incoherent: CGST/SGST and IGST cannot both carry value.",
+		"Tax split is coherent." if coherent
+		else "Tax split is incoherent: CGST/SGST and IGST cannot both carry value.",
 		"CGST+SGST xor IGST", f"cgst={p.get('cgst')} sgst={p.get('sgst')} igst={p.get('igst')}")
 
 
@@ -70,8 +73,10 @@ def _declared_vs_extracted(p, tol):
 	if declared is None:
 		return row("V-EXT-07", STAGE, WARN, SKIP, "No declared total supplied by the uploader.")
 	claimed = flt(p.get("grand_total"))
-	return row("V-EXT-07", STAGE, WARN, verdict(abs(flt(declared) - claimed) <= tol),
-		"Uploader's declared total disagrees with the invoice.",
+	ok = abs(flt(declared) - claimed) <= tol
+	return row("V-EXT-07", STAGE, WARN, verdict(ok),
+		"Uploader's declared total agrees with the invoice." if ok
+		else "Uploader's declared total disagrees with the invoice.",
 		f"{flt(declared):.2f}", f"{claimed:.2f}")
 
 
@@ -119,5 +124,8 @@ def _company_gstin(p):
 			"No company supplied, so the buyer GSTIN cannot be checked against one.",
 			"a company", None)
 	registered = get_gstin_list(company, "Company") or []
-	return row("V-EXT-10", STAGE, ERROR, verdict(claimed in registered),
-		f"Buyer GSTIN is not registered against {company}.", registered or "none on file", claimed)
+	ok = claimed in registered
+	return row("V-EXT-10", STAGE, ERROR, verdict(ok),
+		f"Buyer GSTIN is registered against {company}." if ok
+		else f"Buyer GSTIN is not registered against {company}.",
+		registered or "none on file", claimed)

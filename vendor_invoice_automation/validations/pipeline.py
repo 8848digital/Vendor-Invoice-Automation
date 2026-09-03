@@ -3,14 +3,14 @@
 A block is `fn(ctx) -> rows`. `ctx` carries the payload and whatever an earlier block
 decided (`mode`), so any block can be run alone or stacked in any order:
 
-    validate(p)                             # every block, SPEC §5 order
-    validate(p, ["intake"])                 # just intake
-    validate(p, ["intake", "gst"])          # stack the ones you want
+    validate(p)                             # every block, in order
+    validate(p, ["duplicate"])              # just requirement 7
+    validate(p, ["gst", "itc"])             # stack the ones you want
 """
 
-from . import decision, extraction, fraud, gst, intake, matching, routing, tolerance
+from . import decision, duplicate, einvoice, extraction, fraud, gst, intake, itc, matching, routing
 from .base import FAIL
-from .routing import PO_MODES
+from .routing import PO_MODES, THREE_WAY
 
 
 def _intake(ctx):
@@ -27,36 +27,54 @@ def _routing(ctx):
 	return []
 
 
-def _matching(ctx):
-	# Runs standalone too: route first if `routing` was not in the sequence.
+def _mode(ctx):
+	"""Every matching block runs standalone too, so route first if `routing` was not
+	in the sequence."""
 	if "mode" not in ctx:
 		_routing(ctx)
-	return matching.run(ctx["mode"]) if ctx["mode"] in PO_MODES else []
+	return ctx["mode"]
 
 
-def _tolerance(ctx):
-	if "mode" not in ctx:
-		_routing(ctx)
-	return tolerance.run(ctx["invoice"], ctx["mode"])
+def _po_match(ctx):
+	return matching.po_match(ctx["invoice"]) if _mode(ctx) in PO_MODES else []
+
+
+def _grn_match(ctx):
+	"""GRN matching is 3-Way only: a service PO has nothing to receive."""
+	return matching.grn_match(ctx["invoice"]) if _mode(ctx) == THREE_WAY else []
 
 
 BLOCKS = {
 	"intake": _intake,
 	"extraction": lambda ctx: extraction.run(ctx["invoice"]),
+	"duplicate": lambda ctx: duplicate.run(ctx["invoice"]),
 	"fraud": lambda ctx: fraud.run(ctx["invoice"]),
+	"einvoice": lambda ctx: einvoice.run(ctx["invoice"]),
 	"gst": lambda ctx: gst.run(ctx["invoice"]),
+	"itc": lambda ctx: itc.run(ctx["invoice"]),
 	"routing": _routing,
-	"matching": _matching,
-	"tolerance": _tolerance,
+	"po_match": _po_match,
+	"grn_match": _grn_match,
 }
 
-DEFAULT_SEQUENCE = ("intake", "extraction", "fraud", "gst", "routing", "matching", "tolerance")
+DEFAULT_SEQUENCE = (
+	"intake",
+	"extraction",
+	"duplicate",
+	"fraud",
+	"einvoice",
+	"gst",
+	"itc",
+	"routing",
+	"po_match",
+	"grn_match",
+)
 
 
 def validate(p, blocks=None):
 	"""Run `blocks` in order against the payload. Returns the full response body.
 
-	`blocks` defaults to every block in SPEC §5 order. Unknown names raise ValueError.
+	`blocks` defaults to every block. Unknown names raise ValueError.
 	"""
 	names = list(blocks or DEFAULT_SEQUENCE)
 	unknown = [n for n in names if n not in BLOCKS]

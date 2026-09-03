@@ -14,6 +14,18 @@ MONETARY_AGREEMENT_TOLERANCE = 1.0
 AUTO_CREATE_ON_YELLOW = False
 
 
+def nic_public_certificate():
+	"""NIC's public certificate (PEM), for verifying signed e-invoice QR codes.
+
+	The one tunable that is not a constant: it is per-deployment and belongs in
+	`site_config.json` as `via_nic_public_certificate`, never in source. Absent is a
+	normal state — V-FAKE-02 reports Skipped rather than passing.
+	"""
+	import frappe
+
+	return (frappe.conf.get("via_nic_public_certificate") or "").strip()
+
+
 def row(check_id, stage, severity, result, message="", expected=None, found=None):
 	"""One audit row. `expected`/`found` are stringified so the response is JSON-safe
 	whatever the caller passed in."""
