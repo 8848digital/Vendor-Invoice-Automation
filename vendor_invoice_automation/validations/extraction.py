@@ -123,7 +123,14 @@ def _company_gstin(p):
 		return row("V-EXT-10", STAGE, ERROR, FAIL,
 			"No company supplied, so the buyer GSTIN cannot be checked against one.",
 			"a company", None)
-	registered = get_gstin_list(company, "Company") or []
+	# ponytail: get_gstin_list enforces frappe.has_permission("Company"), which Guest
+	# never has; this endpoint is guest-facing and read-only, so elevate for the lookup.
+	user = frappe.session.user
+	frappe.set_user("Administrator")
+	try:
+		registered = get_gstin_list(company, "Company") or []
+	finally:
+		frappe.set_user(user)
 	ok = claimed in registered
 	return row("V-EXT-10", STAGE, ERROR, verdict(ok),
 		f"Buyer GSTIN is registered against {company}." if ok

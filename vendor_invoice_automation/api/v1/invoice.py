@@ -14,7 +14,7 @@ from vendor_invoice_automation.validations import validate as _validate
 from .response_formatter import api_response, handle_bad_request
 
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def validate_invoice(invoice: dict | str, blocks: list | str | None = None) -> dict:
 	"""Validate one extracted invoice. Read-only — nothing is stored or written.
 
@@ -68,7 +68,7 @@ def validate_invoice(invoice: dict | str, blocks: list | str | None = None) -> d
 	)
 
 
-@frappe.whitelist()
+@frappe.whitelist(allow_guest=True)
 def validation_blocks() -> dict:
 	"""The block names `validate_invoice` accepts, and the default sequence."""
 	return api_response(data={"blocks": sorted(BLOCKS), "default": list(DEFAULT_SEQUENCE)})
