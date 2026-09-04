@@ -80,7 +80,7 @@ Fetch the two context keys this needs:
 - `fiscal_year` — `jarvis__get_fiscal_year` for `invoice_date` and the company. If it throws
   (the date falls in no open year), send `"fiscal_year": null`.
 - `company_gstins` — `jarvis__run_method` on
-  `india_compliance.gst_india.utils.get_gstin_list` with `{"party": <company>,
+  `india_compliance.gst_india.utils.get_gstin_list` with `{"party": {company},
   "party_type": "Company"}`.
 
 Then call the validation API **once**:

@@ -29,7 +29,7 @@ than the other validations.
 
 ```
 jarvis__get_list  Purchase Invoice
-  filters: [["bill_no", "=", <invoice_no>], ["supplier", "=", <supplier>]]
+  filters: [["bill_no", "=", {invoice_no}], ["supplier", "=", {supplier}]]
   fields:  ["name", "docstatus", "supplier_gstin", "bill_date", "grand_total"]
 ```
 
@@ -51,7 +51,7 @@ auto-creation.
 
 ```
 jarvis__get_list  GST Inward Supply
-  filters: [["irn_number", "=", <irn>], ["bill_no", "!=", <invoice_no>]]
+  filters: [["irn_number", "=", {irn}], ["bill_no", "!=", {invoice_no}]]
   fields:  ["name", "bill_no"]
   limit:   5
 ```
