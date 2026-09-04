@@ -3,8 +3,8 @@
 The whole design rests on one observation: **ERPNext already knows what a Purchase
 Invoice against this PO or this receipt is supposed to look like.** Rather than
 re-deriving "what is still billable" from `qty`, `billed_amt`, `received_qty`,
-`rejected_qty` and `returned_qty` by hand, we ask ERPNext's own mapper to build the
-expected invoice and diff the supplier's document against it.
+`rejected_qty` and `returned_qty` by hand, ERPNext's own mapper builds the expected
+invoice and we diff the supplier's document against it.
 
     erpnext…purchase_order.mapper.make_purchase_invoice(po)
     erpnext…purchase_receipt.mapper.make_purchase_invoice(pr)
@@ -14,8 +14,11 @@ would later do: PO submitted, line not closed, line not already fully billed,
 pending qty net of what is booked, received less rejected less returned, plus every
 rate, UOM, conversion factor and tax the order carries.
 
-Tolerances are ERPNext's, never ours, via `get_allowance_for` — the same function the
-mappers themselves use. So a verdict here cannot disagree with the eventual insert.
+**The mapper now runs on the caller's site, not here** — both are `@frappe.whitelist()`,
+so the caller invokes them against its own database and ships the result as
+`context["po"]["expected_invoice"]` / `context["grn"]["expected_invoices"]`. The premise is
+unchanged; only the address of the database moved. Nothing in this module re-derives what
+is billable.
 
 Requirement 11's traffic light falls out of severity:
 
@@ -24,10 +27,9 @@ Requirement 11's traffic light falls out of severity:
     beyond allowance          Fail/Error    red
 """
 
-import frappe
 from frappe.utils import flt
 
-from .base import ERROR, FAIL, PASS, SKIP, WARN, row, verdict
+from .base import ERROR, FAIL, PASS, SKIP, UNSET, WARN, row, unchecked, verdict
 
 PO_STAGE, GRN_STAGE = "po_matching", "grn_matching"
 
@@ -38,24 +40,6 @@ RATE_EPSILON = 0.01
 # --------------------------------------------------------------------------- expected
 
 
-def _expected(doctype, name):
-	"""The invoice ERPNext would build from this document. Returns (doc, error).
-
-	The mapper throws for a draft or cancelled source (its `validation` clause) and
-	for a closed or on-hold order — which is the answer we want, as a message rather
-	than a traceback.
-	"""
-	if doctype == "Purchase Order":
-		from erpnext.buying.doctype.purchase_order.mapper import make_purchase_invoice
-	else:
-		from erpnext.stock.doctype.purchase_receipt.mapper import make_purchase_invoice
-
-	try:
-		return make_purchase_invoice(name), None
-	except Exception as e:
-		return None, frappe.utils.strip_html(str(e)) or type(e).__name__
-
-
 def _by_item(doc):
 	"""Expected lines folded by item_code, since a pre-insert OCR payload carries no
 	`po_detail`/`pr_detail` row ids — `item_code` is the only key available.
@@ -64,46 +48,73 @@ def _by_item(doc):
 	order twice at two prices, and either is legitimate.
 	"""
 	out = {}
-	for line in doc.get("items") or []:
-		agg = out.setdefault(line.item_code, frappe._dict(
-			rates=set(), qty=0.0, amount=0.0, uoms=set(), warehouses=set(), rows=[]))
-		agg.rates.add(flt(line.rate))
-		agg.qty += flt(line.qty)
-		agg.amount += flt(line.qty) * flt(line.rate)
+	for line in (doc or {}).get("items") or []:
+		code = str(line.get("item_code") or "")
+		agg = out.setdefault(code, _agg())
+		agg["rates"].add(flt(line.get("rate")))
+		agg["qty"] += flt(line.get("qty"))
+		agg["amount"] += flt(line.get("qty")) * flt(line.get("rate"))
 		if line.get("uom"):
-			agg.uoms.add(line.uom)
+			agg["uoms"].add(line["uom"])
 		if line.get("warehouse"):
-			agg.warehouses.add(line.warehouse)
-		agg.rows.append(line)
+			agg["warehouses"].add(line["warehouse"])
+		agg["rows"].append(line)
 	return out
 
 
-def _allowance(item_code, qty_or_amount, **kwargs):
-	"""ERPNext's Item-then-global allowance lookup. Returns a percentage."""
-	from erpnext.controllers.status_updater import get_allowance_for
+def _agg():
+	return {"rates": set(), "qty": 0.0, "amount": 0.0, "uoms": set(), "warehouses": set(), "rows": []}
 
-	return flt(get_allowance_for(item_code, qty_or_amount=qty_or_amount, **kwargs)[0])
+
+# ponytail: a local copy of erpnext.controllers.status_updater.get_allowance_for's
+# Item-then-global fallback (status_updater.py:872-893), because that function is NOT
+# @frappe.whitelist() and so cannot be reached from the caller's site the way the mappers
+# can. It is a two-level `or`, not billable-qty derivation — the moment ERPNext whitelists
+# it, delete this and have the caller send the resolved percentages instead.
+_ALLOWANCE_FIELD = {
+	"qty": "over_delivery_receipt_allowance",
+	"amount": "over_billing_allowance",
+}
+
+
+def _allowance(item_code, qty_or_amount, c):
+	"""ERPNext's Item-then-global allowance lookup, off context. Returns a percentage."""
+	field = _ALLOWANCE_FIELD[qty_or_amount]
+	item = (c.get("items") or {}).get(str(item_code)) or {}
+	return flt(item.get(field) or (c.get("settings") or {}).get(field))
 
 
 # --------------------------------------------------------------------------- req 10
 
 
-def po_match(p):
+def po_match(p, c):
 	"""Requirement 10 — compare the invoice against its Purchase Order."""
 	po = p.get("po_number")
 	if not po:
 		return [row("V-PO-01", PO_STAGE, ERROR, SKIP, "Invoice carries no PO number.")]
 
-	expected, error = _expected("Purchase Order", po)
+	supplied = c.get("po", UNSET)
+	if supplied is UNSET:
+		return [unchecked("V-PO-01", PO_STAGE, ERROR, "po")]
+
+	supplied = supplied or {}
+	error = supplied.get("error")
 	if error:
 		# Not billable is a real answer, and a blocking one: never auto-create against
-		# an order ERPNext itself refuses to invoice.
+		# an order ERPNext itself refuses to invoice. The mapper threw on the caller's
+		# site — for a draft, cancelled, closed or fully-billed order — and that message
+		# is the answer we want.
 		return [row("V-PO-01", PO_STAGE, ERROR, FAIL,
 			f"{po} cannot be invoiced: {error}", "a submitted, open, unbilled PO", po)]
 
+	expected = supplied.get("expected_invoice")
+	if not expected:
+		return [row("V-PO-01", PO_STAGE, ERROR, FAIL,
+			f"No expected invoice supplied for {po}.", "a mapped Purchase Invoice", None)]
+
 	return [
 		_party(p, expected, po),
-		*_line_checks(p, _by_item(expected), PO_STAGE, "V-PO"),
+		*_line_checks(p, _by_item(expected), PO_STAGE, "V-PO", c),
 	]
 
 
@@ -115,7 +126,7 @@ def _party(p, expected, po):
 		("company", p.get("company")),
 		("currency", p.get("currency")),
 	):
-		want = expected.get(field)
+		want = (expected or {}).get(field)
 		if claimed and want and claimed != want:
 			off.append(f"{field}: invoice {claimed} vs order {want}")
 
@@ -128,36 +139,36 @@ def _party(p, expected, po):
 # --------------------------------------------------------------------------- req 11
 
 
-def grn_match(p):
+def grn_match(p, c):
 	"""Requirement 11 — compare the invoice against what was actually received.
 
-	Every submitted receipt against the order is mapped and the expected lines are
-	merged, because one invoice legitimately covers several partial receipts.
+	Every submitted receipt against the order is mapped on the caller's site and the
+	expected lines are merged here, because one invoice legitimately covers several
+	partial receipts.
 	"""
 	po = p.get("po_number")
-	receipts = frappe.get_all("Purchase Receipt Item",
-		filters={"purchase_order": po, "docstatus": 1}, pluck="parent", distinct=True) if po else []
+	supplied = c.get("grn", UNSET)
+	if supplied is UNSET:
+		return [unchecked("V-GRN-02", GRN_STAGE, ERROR, "grn")]
 
+	supplied = supplied or {}
+	receipts = supplied.get("receipts") or []
 	if not receipts:
 		return [row("V-GRN-02", GRN_STAGE, ERROR, FAIL,
 			f"No submitted Purchase Receipt against {po}; nothing was received to invoice.",
 			"at least one submitted Purchase Receipt", "none")]
 
-	merged, errors = {}, []
-	for pr in receipts:
-		expected, error = _expected("Purchase Receipt", pr)
-		if error:
-			errors.append(f"{pr}: {error}")
-			continue
+	errors = list(supplied.get("errors") or [])
+	merged = {}
+	for expected in supplied.get("expected_invoices") or []:
 		for item_code, agg in _by_item(expected).items():
-			into = merged.setdefault(item_code, frappe._dict(
-				rates=set(), qty=0.0, amount=0.0, uoms=set(), warehouses=set(), rows=[]))
-			into.rates |= agg.rates
-			into.uoms |= agg.uoms
-			into.warehouses |= agg.warehouses
-			into.qty += agg.qty
-			into.amount += agg.amount
-			into.rows += agg.rows
+			into = merged.setdefault(item_code, _agg())
+			into["rates"] |= agg["rates"]
+			into["uoms"] |= agg["uoms"]
+			into["warehouses"] |= agg["warehouses"]
+			into["qty"] += agg["qty"]
+			into["amount"] += agg["amount"]
+			into["rows"] += agg["rows"]
 
 	out = [row("V-GRN-02", GRN_STAGE, ERROR, verdict(bool(merged)),
 		f"Receipts against {po} have nothing left to invoice: {errors}" if not merged
@@ -165,7 +176,7 @@ def grn_match(p):
 		"receipted qty left to invoice", errors or list(receipts))]
 
 	if merged:
-		out += _line_checks(p, merged, GRN_STAGE, "V-GRN")
+		out += _line_checks(p, merged, GRN_STAGE, "V-GRN", c)
 		out.append(_warehouse_batch_serial(p, merged))
 	return out
 
@@ -183,14 +194,15 @@ def _warehouse_batch_serial(p, expected):
 		if not agg:
 			continue
 
-		if (wh := line.get("warehouse")) and agg.warehouses and wh not in agg.warehouses:
-			off.append(f"{line['item_code']} warehouse: invoice {wh} vs received {sorted(agg.warehouses)}")
+		if (wh := line.get("warehouse")) and agg["warehouses"] and wh not in agg["warehouses"]:
+			off.append(
+				f"{line['item_code']} warehouse: invoice {wh} vs received {sorted(agg['warehouses'])}")
 
 		for field in ("batch_no", "serial_no"):
 			claimed = line.get(field)
 			if not claimed:
 				continue
-			received = {r.get(field) for r in agg.rows if r.get(field)}
+			received = {r.get(field) for r in agg["rows"] if r.get(field)}
 			if received and claimed not in received:
 				off.append(f"{line['item_code']} {field}: invoice {claimed} vs received {sorted(received)}")
 
@@ -203,7 +215,7 @@ def _warehouse_batch_serial(p, expected):
 # --------------------------------------------------------------------------- the diff
 
 
-def _line_checks(p, expected, stage, prefix):
+def _line_checks(p, expected, stage, prefix, c):
 	"""The shared diff: every line of the invoice against what is still billable."""
 	lines = p.get("items") or []
 	if not lines:
@@ -214,9 +226,9 @@ def _line_checks(p, expected, stage, prefix):
 
 	return [
 		_material(lines, expected, stage, prefix),
-		_quantity(matched, stage, prefix),
-		_rate(matched, stage, prefix),
-		_amount(matched, stage, prefix),
+		_quantity(matched, stage, prefix, c),
+		_rate(matched, stage, prefix, c),
+		_amount(matched, stage, prefix, c),
 		_uom(matched, stage, prefix),
 	]
 
@@ -233,18 +245,18 @@ def _material(lines, expected, stage, prefix):
 		"every line billable", unknown or None)
 
 
-def _quantity(matched, stage, prefix):
+def _quantity(matched, stage, prefix, c):
 	"""Quantity, against ERPNext's own over-receipt allowance."""
 	if not matched:
 		return row(f"{prefix}-10", stage, ERROR, SKIP, "No line resolved; nothing to compare.")
 
 	exact, within, over = True, [], []
 	for line, agg in matched:
-		billed, pending = flt(line.get("qty")), flt(agg.qty)
+		billed, pending = flt(line.get("qty")), flt(agg["qty"])
 		if abs(billed - pending) < RATE_EPSILON:
 			continue
 		exact = False
-		allowance = _allowance(line["item_code"], "qty")
+		allowance = _allowance(line["item_code"], "qty", c)
 		ceiling = pending * (100 + allowance) / 100
 		detail = f"{line['item_code']}: {billed} vs {pending} available (+{allowance}%)"
 		(over if billed > ceiling else within).append(detail)
@@ -253,18 +265,25 @@ def _quantity(matched, stage, prefix):
 		"Quantity", "the billable quantity")
 
 
-def _rate(matched, stage, prefix):
+def _rate(matched, stage, prefix, c):
 	"""Rate. ERPNext expresses this as a switch, not a band — `maintain_same_rate`
-	against a 0.01 epsilon — so there is no percentage to widen it with."""
+	against a 0.01 epsilon — so there is no percentage to widen it with.
+
+	`rate_override_held` is resolved by the caller for **the user who will actually book
+	the invoice**. It used to be `frappe.get_roles()` here, which on a guest-facing
+	endpoint returned the Guest's roles and so never matched — making every rate finding
+	strictly more blocking for an API caller than for the human doing the same thing.
+	"""
 	if not matched:
 		return row(f"{prefix}-11", stage, ERROR, SKIP, "No line resolved; nothing to compare.")
 
-	enforced, action, override_role = frappe.get_cached_value("Buying Settings", None,
-		["maintain_same_rate", "maintain_same_rate_action", "role_to_override_stop_action"])
+	settings = c.get("settings") or {}
+	enforced = settings.get("maintain_same_rate")
+	action = settings.get("maintain_same_rate_action")
 
-	off = [f"{line['item_code']}: {flt(line.get('rate'))} vs {sorted(agg.rates)}"
+	off = [f"{line['item_code']}: {flt(line.get('rate'))} vs {sorted(agg['rates'])}"
 		for line, agg in matched
-		if all(abs(flt(line.get("rate")) - r) >= RATE_EPSILON for r in agg.rates)]
+		if all(abs(flt(line.get("rate")) - r) >= RATE_EPSILON for r in agg["rates"])]
 
 	if not enforced:
 		return row(f"{prefix}-11", stage, WARN, verdict(not off),
@@ -274,30 +293,29 @@ def _rate(matched, stage, prefix):
 
 	# "Warn", and a held override role, are both non-blocking in ERPNext. Mirror that
 	# rather than turning red on a document ERPNext would accept.
-	blocking = action == "Stop" and override_role not in frappe.get_roles()
+	blocking = action == "Stop" and not settings.get("rate_override_held")
 	return row(f"{prefix}-11", stage, ERROR if blocking else WARN, verdict(not off),
 		"Invoice rate differs from the ordered rate." if off else "Every billed rate matches.",
 		"the ordered rate", off or None)
 
 
-def _amount(matched, stage, prefix):
+def _amount(matched, stage, prefix, c):
 	"""Amount, against ERPNext's over-billing allowance."""
 	if not matched:
 		return row(f"{prefix}-12", stage, ERROR, SKIP, "No line resolved; nothing to compare.")
 
-	override_role = frappe.get_cached_value("Accounts Settings", None, "role_allowed_to_over_bill")
 	exact, within, over = True, [], []
 	for line, agg in matched:
-		billed, expected_amount = flt(line.get("amount")), flt(agg.amount)
+		billed, expected_amount = flt(line.get("amount")), flt(agg["amount"])
 		if abs(billed - expected_amount) < RATE_EPSILON:
 			continue
 		exact = False
-		allowance = _allowance(line["item_code"], "amount")
+		allowance = _allowance(line["item_code"], "amount", c)
 		ceiling = expected_amount * (100 + allowance) / 100
 		detail = f"{line['item_code']}: {billed:.2f} vs {expected_amount:.2f} billable (+{allowance}%)"
 		(over if billed > ceiling else within).append(detail)
 
-	if over and override_role in frappe.get_roles():
+	if over and (c.get("settings") or {}).get("over_bill_override_held"):
 		# ERPNext would accept this document, so it must not go red.
 		within, over = within + over, []
 
@@ -308,9 +326,9 @@ def _amount(matched, stage, prefix):
 def _uom(matched, stage, prefix):
 	"""UOM. A different unit makes every quantity comparison above meaningless, so it
 	is blocking even though the numbers may look close."""
-	off = [f"{line['item_code']}: {line.get('uom')} vs {sorted(agg.uoms)}"
+	off = [f"{line['item_code']}: {line.get('uom')} vs {sorted(agg['uoms'])}"
 		for line, agg in matched
-		if line.get("uom") and agg.uoms and line["uom"] not in agg.uoms]
+		if line.get("uom") and agg["uoms"] and line["uom"] not in agg["uoms"]]
 	return row(f"{prefix}-09", stage, ERROR, verdict(not off),
 		"Invoice UOM differs from the order's." if off else "UOM matches on every line.",
 		"the ordered UOM", off or None)

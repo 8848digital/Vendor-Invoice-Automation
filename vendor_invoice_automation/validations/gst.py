@@ -8,7 +8,6 @@ supplier because GSTN was unreachable is the worse failure.
 
 import frappe
 from frappe.utils import flt
-
 from india_compliance.gst_india.doctype.gstin.gstin import validate_gstin_status
 from india_compliance.gst_india.utils import get_state
 
@@ -19,18 +18,21 @@ from .base import (
 	MONETARY_AGREEMENT_TOLERANCE,
 	PASS,
 	SKIP,
+	UNSET,
 	WARN,
 	row,
+	unchecked,
 	verdict,
 )
-from .gst_2b import inward_supply
 from .gst_utils import gstin_doc, gstin_error, pan_of
 
 STAGE = "gst"
 COMPOSITION = "Registered Composition"
 
 
-def run(p):
+def run(p, c):
+	"""GSTIN status stays a local lookup: it is public GSTN data this site holds its own
+	GSP credentials for, not caller data. Everything else comes from `context`."""
 	doc_gstin = p.get("supplier_gstin")
 	invoice_date = p.get("invoice_date")
 
@@ -38,16 +40,20 @@ def run(p):
 	out = [row("V-GST-01/02", STAGE, ERROR, verdict(not err),
 		err or "Supplier GSTIN is well-formed.", "valid GSTIN", doc_gstin)]
 
-	out += _status_checks(doc_gstin, invoice_date, skip=bool(err))
-	out.append(_composition(p))
-	out.append(_supplier_pan(p, doc_gstin))
+	out += _status_checks(doc_gstin, invoice_date, c, skip=bool(err))
+	out.append(_composition(p, c))
+	out.append(_supplier_pan(p, c, doc_gstin))
 	out.append(_place_of_supply(p, doc_gstin))
-	out.append(_hsn_registered(p))
+	out.append(_hsn_registered(p, c))
 
 	# Requirement 9's remaining rules, all off the supplier's own filing. Without a 2B
 	# row none of them can run, and V-GST-16 already says exactly that — so they stay
 	# quiet rather than repeating it three times.
-	supply = inward_supply(p)
+	supply = c.get("inward_supply", UNSET)
+	if supply is UNSET:
+		out.append(unchecked("V-GST-16", STAGE, INFO, "inward_supply"))
+		return out
+
 	out.append(_reflected_in_2b(p, supply))
 	if supply:
 		out.append(_return_filing_status(p, supply))
@@ -55,14 +61,17 @@ def run(p):
 	return out
 
 
-def _status_checks(doc_gstin, invoice_date, skip=False):
+def _status_checks(doc_gstin, invoice_date, c, skip=False):
 	"""V-GST-03 (active now) and V-GST-04a (active as on the invoice date).
 
 	V-GST-04a is a *call*, not an implementation: india_compliance's
 	`validate_gstin_status` already compares against registration_date / cancelled_date.
 	SPEC §5 Stage 3 claims we must build this. It is wrong.
 	"""
-	doc = None if skip else gstin_doc(doc_gstin, invoice_date)
+	# A caller that already resolved the status (its own india_compliance, its own GSP)
+	# short-circuits ours; otherwise we look it up here.
+	supplied = c.get("gstin_status")
+	doc = None if skip else (frappe._dict(supplied) if supplied else gstin_doc(doc_gstin, invoice_date))
 	if not doc:
 		return [row("V-GST-03", STAGE, ERROR, SKIP,
 			f"No GSTIN record for {doc_gstin}, so its status — now and as on the invoice "
@@ -83,9 +92,12 @@ def _status_checks(doc_gstin, invoice_date, skip=False):
 	return out
 
 
-def _composition(p):
+def _composition(p, c):
 	"""V-GST-05: a composition supplier may not charge GST."""
-	category = frappe.db.get_value("Supplier", p.get("supplier"), "gst_category") if p.get("supplier") else None
+	sup = c.get("supplier", UNSET)
+	if sup is UNSET:
+		return unchecked("V-GST-05", STAGE, ERROR, "supplier")
+	category = sup.get("gst_category") if sup else None
 	if category != COMPOSITION:
 		return row("V-GST-05", STAGE, ERROR, PASS,
 			"Supplier is not under the composition scheme.", found=category)
@@ -96,9 +108,12 @@ def _composition(p):
 		"zero tax", f"{taxes:.2f}")
 
 
-def _supplier_pan(p, doc_gstin):
+def _supplier_pan(p, c, doc_gstin):
 	"""V-GST-07."""
-	master_pan = frappe.db.get_value("Supplier", p.get("supplier"), "pan") if p.get("supplier") else None
+	sup = c.get("supplier", UNSET)
+	if sup is UNSET:
+		return unchecked("V-GST-07", STAGE, ERROR, "supplier")
+	master_pan = sup.get("pan") if sup else None
 	doc_pan = pan_of(doc_gstin)
 	if not (doc_pan and master_pan):
 		return row("V-GST-07", STAGE, ERROR, FAIL,
@@ -138,13 +153,19 @@ def _place_of_supply(p, doc_gstin):
 		"CGST+SGST" if intra_found else ("IGST" if inter_found else "no tax"))
 
 
-def _hsn_registered(p):
-	"""V-GST-14: every HSN/SAC exists in the GST HSN Code master."""
+def _hsn_registered(p, c):
+	"""V-GST-14: every HSN/SAC exists in the GST HSN Code master.
+
+	`context["hsn_codes"]` is which of *this invoice's* codes the caller found in its own
+	master — so the difference is what is missing.
+	"""
 	codes = {str(line.get("hsn_sac")) for line in (p.get("items") or []) if line.get("hsn_sac")}
 	if not codes:
 		return row("V-GST-14", STAGE, WARN, SKIP, "No HSN/SAC codes on the invoice to check.")
-	known = set(frappe.get_all("GST HSN Code", filters={"name": ("in", list(codes))}, pluck="name"))
-	missing = sorted(codes - known)
+	known = c.get("hsn_codes", UNSET)
+	if known is UNSET:
+		return unchecked("V-GST-14", STAGE, WARN, "hsn_codes")
+	missing = sorted(codes - {str(k) for k in (known or [])})
 	# ponytail: existence only. Rate-vs-HSN needs a per-HSN rate the master does not
 	# carry; that half of V-GST-14 arrives with Stage 4a's PO tax comparison.
 	return row("V-GST-14", STAGE, WARN, verdict(not missing),

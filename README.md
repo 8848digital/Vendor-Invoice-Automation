@@ -1,6 +1,19 @@
 ### Vendor Invoice Automation
 
-Supplier invoice intake, validation and Draft Purchase Invoice automation
+Supplier invoice intake, validation and Draft Purchase Invoice automation.
+
+**This app is a stateless validation service.** It runs on its own site, separate from the
+ERPNext bench whose invoices it validates, and reads no business data of its own — the
+caller fetches whatever the checks compare against and sends it as `context`. Nothing is
+stored: the only state is a short-lived Redis cache behind `invoice_ref`.
+
+- [`CONTEXT.md`](CONTEXT.md) — the caller contract: what to send, and how to fetch it
+- [`VALIDATION_API_MAP.md`](VALIDATION_API_MAP.md) — every validation ID, and what implements it
+- [`SPEC.md`](SPEC.md) — the phase specification
+
+Because it is stateless, callers need nothing installed on their own bench: every lookup
+`CONTEXT.md` describes is either a plain `/api/resource/` read or an already-whitelisted
+ERPNext method.
 
 ### Installation
 

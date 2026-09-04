@@ -10,8 +10,15 @@ Both differ from what SPEC.md assumes — see [§4 Corrections](#4-corrections-t
 
 ## 1. Flow
 
-This phase is **stateless**. The caller extracts the invoice and passes the values in;
-the app validates and returns a status. Nothing is stored, nothing is written.
+This phase is **stateless**: the caller extracts the invoice *and fetches everything the
+checks compare against*, then passes both in. The app stores nothing durable and writes
+nothing. Its only state is a ~1h Redis cache behind `invoice_ref`, so a multi-step caller
+can re-validate the same payload without restating it.
+
+**This app reads no business data of its own.** It runs on its own site, separate from the
+ERPNext bench whose invoices it validates, so `Supplier`, `Purchase Order`, `Purchase
+Invoice`, `GST Inward Supply`, `Item` and the Settings all arrive as `context`, assembled
+by the caller. See [`CONTEXT.md`](CONTEXT.md) for how to build it.
 
 ```
 Jarvis: file intake + extraction        ← V-INT-01/02/03, V-EXT-06 happen HERE
@@ -19,37 +26,48 @@ Jarvis: file intake + extraction        ← V-INT-01/02/03, V-EXT-06 happen HERE
    · PDF opens cleanly
    · file_hash not seen before
    · extract (QR / e-invoice JSON / XML / text PDF / LLM)
+   · fetch the `context` this run needs      ← CONTEXT.md
         │
         │  POST /api/method/vendor_invoice_automation.api.v1.invoice.validate_invoice
         │  { "invoice": { supplier, company, invoice_no, invoice_date, supplier_gstin,
         │      company_gstin, place_of_supply, po_number, taxable_value, cgst, sgst,
         │      igst, cess, round_off, grand_total, declared:{…}, items:[…] },
+        │    "context": { supplier:{…}, existing_invoices:[…], po:{…}, … },
         │    "blocks": ["intake", "gst"] }        ← optional; omit to run them all
         ▼
 api/v1/invoice.py          parse · delegate · format   ← transport only, no rules
         │
         ▼
-validations/pipeline.py    validate(p, blocks=None)   runs a sequence of BLOCKS
+validations/pipeline.py    validate(p, blocks=None, context=None)
         │
-        ├─ "intake"      Stage 0   V-INT-04…07
-        ├─ "extraction"  Stage 1   V-EXT-03…10
-        ├─ "fraud"       Stage 2   V-DUP-*, V-FAKE-*
-        ├─ "gst"         Stage 3   V-GST-*      → india_compliance
-        ├─ "routing"     Stage 4   → matching_mode (no rows; a decision, not a check)
-        ├─ "matching"    Stage 4a/5  PO modes only (unbuilt, fails closed)
-        └─ "tolerance"   Stage 4b  V-PO-10/11/12  → ERPNext's own limits
+        ├─ "intake"      Stage 0   V-INT-04…07     ← context.supplier
+        ├─ "extraction"  Stage 1   V-EXT-03…10     ← context.fiscal_year, company_gstins
+        ├─ "duplicate"   Req 7     V-DUP-01/02/07  ← context.existing_invoices, irn_hits
+        ├─ "fraud"       Stage 2   V-FAKE-01/07/08 ← context.supplier
+        ├─ "einvoice"    Req 8     V-FAKE-02/04, V-GST-08/09/10   (pure — no context)
+        ├─ "gst"         Stage 3   V-GST-*         ← context.supplier, hsn_codes,
+        │                                            inward_supply  → india_compliance
+        ├─ "itc"         Req 8     V-ITC-01        ← context.inward_supply
+        ├─ "routing"     Stage 4   → matching_mode ← context.items  (a decision, not a check)
+        ├─ "po_match"    Req 10    V-PO-*          ← context.po, items, settings
+        └─ "grn_match"   Req 11    V-GRN-*         ← context.grn, items, settings
         │
         ▼
-validations/decision.py    gate(rows, mode)          Stage 6
+validations/decision.py    gate(rows, mode, partial) Stage 6
         │
         ▼
 api/v1/response_formatter.py   api_response(success, data, message)
         │
         ▼
 { status, message, timestamp,
-  data: { ok, verdict, auto_create_allowed, review_required,
-          matching_mode, exception_type, failed[], skipped[], checks[] } }
+  data: { ok, verdict, auto_create_allowed, review_required, matching_mode,
+          exception_type, failed[], skipped[], unrun[], partial, checks[],
+          invoice_ref, contract_version } }
 ```
+
+**Gate every write on `auto_create_allowed`, never on `ok` or `verdict`.** Green only says
+nothing failed; it does not say anything *ran*. `auto_create_allowed` is false whenever a
+check's context key was missing (`unrun`) or a subset of blocks was run (`partial`).
 
 **Layout** — `api/v1/` is transport only; every rule lives in `validations/`, one
 module per SPEC stage, so a stage can be read, tested and changed on its own.

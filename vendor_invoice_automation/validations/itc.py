@@ -9,8 +9,7 @@ Info severity throughout: ITC status is a stamp the invoice carries into the boo
 not a reason to reject it. An ineligible invoice is still a valid invoice.
 """
 
-from .base import INFO, PASS, row
-from .gst_2b import inward_supply
+from .base import INFO, PASS, UNSET, row, unchecked
 
 STAGE = "itc"
 
@@ -21,10 +20,14 @@ ISD_CLASSIFICATIONS = ("ISD", "ISDA")
 ISD_DOC_TYPES = ("ISD Invoice", "ISD Credit Note")
 
 
-def run(p):
-	"""No 2B row means no ITC determination — which V-GST-16 already reports. Repeating
-	it here as a second Skipped row told the caller nothing, so this stays quiet."""
-	supply = inward_supply(p)
+def run(p, c):
+	"""A 2B row that was looked for and not found means no ITC determination — which
+	V-GST-16 already reports. Repeating it here as a second Skipped row told the caller
+	nothing, so this stays quiet. A 2B row that was never looked for is different, and
+	says so."""
+	supply = c.get("inward_supply", UNSET)
+	if supply is UNSET:
+		return [unchecked("V-ITC-01", STAGE, INFO, "inward_supply")]
 	if not supply:
 		return []
 

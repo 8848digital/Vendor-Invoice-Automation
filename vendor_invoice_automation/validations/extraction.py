@@ -6,17 +6,26 @@ in Python from the raw line values, and a reported total is only ever something 
 check against, never something to trust.
 """
 
-import frappe
-from frappe.utils import flt, getdate
-
+from frappe.utils import flt
 from india_compliance.gst_india.constants import VALID_HSN_LENGTHS
 
-from .base import ERROR, FAIL, MONETARY_AGREEMENT_TOLERANCE, PASS, SKIP, WARN, row, verdict
+from .base import (
+	ERROR,
+	FAIL,
+	MONETARY_AGREEMENT_TOLERANCE,
+	PASS,
+	SKIP,
+	UNSET,
+	WARN,
+	row,
+	unchecked,
+	verdict,
+)
 
 STAGE = "extraction"
 
 
-def run(p):
+def run(p, c):
 	tol = MONETARY_AGREEMENT_TOLERANCE
 	lines = p.get("items") or []
 	return [
@@ -25,8 +34,8 @@ def run(p):
 		_tax_split(p),
 		_declared_vs_extracted(p, tol),
 		_hsn_shape(lines),
-		_fiscal_year(p),
-		_company_gstin(p),
+		_fiscal_year(p, c),
+		_company_gstin(p, c),
 	]
 
 
@@ -93,28 +102,35 @@ def _hsn_shape(lines):
 		f"{' / '.join(map(str, VALID_HSN_LENGTHS))} digits", f"{len(bad)} bad of {len(lines)}")
 
 
-def _fiscal_year(p):
-	"""V-EXT-09."""
-	from erpnext.accounts.utils import get_fiscal_year
+def _fiscal_year(p, c):
+	"""V-EXT-09. The caller resolves this against its own Fiscal Year records — the
+	company's year is site data, not something we can know here.
 
+	`None` means the caller looked and the date falls in no open year, which is the
+	failure this check exists for.
+	"""
 	date = p.get("invoice_date")
 	if not date:
 		return row("V-EXT-09", STAGE, ERROR, FAIL, "No invoice date to place in a fiscal year.")
-	try:
-		fy = get_fiscal_year(getdate(date), company=p.get("company"), as_dict=True)
-	except Exception as e:
-		return row("V-EXT-09", STAGE, ERROR, FAIL, frappe.utils.strip_html(str(e)),
-			"an open Fiscal Year", date)
+
+	fy = c.get("fiscal_year", UNSET)
+	if fy is UNSET:
+		return unchecked("V-EXT-09", STAGE, ERROR, "fiscal_year")
+	if not fy:
+		return row("V-EXT-09", STAGE, ERROR, FAIL,
+			"Invoice date falls in no open Fiscal Year.", "an open Fiscal Year", date)
 	# ponytail: Period Closing Voucher is not consulted; ERPNext blocks a closed period
 	# at insert() anyway, and Stage 7 will insert through ERPNext's own mapper.
 	return row("V-EXT-09", STAGE, ERROR, PASS, "Invoice date falls in an open Fiscal Year.",
 		found=fy.get("name"))
 
 
-def _company_gstin(p):
-	"""V-EXT-10: the buyer GSTIN on the document is one of ours."""
-	from india_compliance.gst_india.utils import get_gstin_list
+def _company_gstin(p, c):
+	"""V-EXT-10: the buyer GSTIN on the document is one of ours.
 
+	The registered list is the caller's own — it resolves it as an authenticated user on
+	its own site, which is why this no longer elevates to Administrator to read a Company.
+	"""
 	claimed, company = p.get("company_gstin"), p.get("company")
 	if not claimed:
 		return row("V-EXT-10", STAGE, ERROR, FAIL,
@@ -123,14 +139,11 @@ def _company_gstin(p):
 		return row("V-EXT-10", STAGE, ERROR, FAIL,
 			"No company supplied, so the buyer GSTIN cannot be checked against one.",
 			"a company", None)
-	# ponytail: get_gstin_list enforces frappe.has_permission("Company"), which Guest
-	# never has; this endpoint is guest-facing and read-only, so elevate for the lookup.
-	user = frappe.session.user
-	frappe.set_user("Administrator")
-	try:
-		registered = get_gstin_list(company, "Company") or []
-	finally:
-		frappe.set_user(user)
+
+	registered = c.get("company_gstins", UNSET)
+	if registered is UNSET:
+		return unchecked("V-EXT-10", STAGE, ERROR, "company_gstins")
+	registered = registered or []
 	ok = claimed in registered
 	return row("V-EXT-10", STAGE, ERROR, verdict(ok),
 		f"Buyer GSTIN is registered against {company}." if ok
