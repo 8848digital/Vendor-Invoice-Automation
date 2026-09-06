@@ -49,6 +49,11 @@ The pages reach you as images. If you need a page again mid-conversation, call
   silently fix it, you have destroyed the finding.
 - **Omit what is not printed.** A missing field is a fact. Never invent a plausible value,
   and never carry one over from a previous invoice in the conversation.
+- **A printed placeholder means absent.** `—`, `-`, `N/A`, `NA`, `Nil`, `None`, `(none)`,
+  `not applicable` and the like are how a form says "this does not apply" — omit the field
+  instead of transcribing the placeholder as its value. This matters most for `po_number`:
+  `"— (non-PO)"` is a non-empty string, so downstream it routes the invoice into PO and GRN
+  matching against an order that does not exist, and fails every one of those checks.
 - `invoice_date` is `YYYY-MM-DD` regardless of how the document prints it.
 - `declared.grand_total` is what a *human* told you the total is, if anyone did. It is not a
   copy of what you read off the page — leave `declared` out if nobody stated one.

@@ -14,7 +14,12 @@ Chosen so the skill's steps actually resolve rather than stalling on the demo si
   CGST+SGST rather than IGST (V-GST-12/13).
 - Arithmetic is exact and asserted in the generator, so V-EXT-03 and V-EXT-04 pass:
   74,100 taxable + 6,669 CGST + 6,669 SGST = 87,438.00.
-- No PO number → routes Non-PO, so PO and GRN matching skip.
+- The PO field deliberately prints `— (non-PO)` rather than being blank. Real invoices print
+  placeholders (`—`, `N/A`, `Nil`) constantly, and a first live run showed the model
+  transcribing that string as the `po_number` *value* — which is truthy, so routing would
+  have sent a non-PO invoice into PO and GRN matching against an order that does not exist.
+  The line stays as the test for the skill's placeholder rule. Correct behaviour is to omit
+  `po_number` entirely and route Non-PO.
 - Dated 28-08-2026: inside the 180-day window and not in the future (V-INT-07). It will
   age out — regenerate, or expect a V-INT-07 warning once it passes 180 days.
 
