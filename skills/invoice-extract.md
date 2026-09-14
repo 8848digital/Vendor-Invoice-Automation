@@ -99,25 +99,51 @@ result — if neither, do not write it.
 
 Fetch the two context keys this needs:
 
-- `fiscal_year` — `jarvis__get_fiscal_year` for `invoice_date` and the company. If it throws
-  (the date falls in no open year), send `"fiscal_year": null`.
+- `fiscal_year` — `jarvis__run_method` on `erpnext.accounts.utils.get_fiscal_year` with
+  `{"date": {invoice_date}, "company": {company}, "as_dict": true, "verbose": 0}`. Send its
+  return **verbatim** as `context.fiscal_year` — the check reads a `name` key off it, so do
+  not reshape it or pass only the fiscal year's name string.
+  **Not** `jarvis__get_fiscal_year`: that tool's own return shape is `{"fiscal_year": "…",
+  "year_start_date": …, "year_end_date": …}` — no `name` key — and sending it straight
+  through crashes the extraction block with an `AttributeError` on a PASS.
+  If the call throws (the date falls in no open year), send `"fiscal_year": null`.
 - `company_gstins` — `jarvis__run_method` on
   `india_compliance.gst_india.utils.get_gstin_list` with `{"party": {company},
   "party_type": "Company"}`.
+  If that call fails with **"unknown method"** (this india_compliance version or site does
+  not expose that path — confirmed to happen on real installs), **omit `company_gstins`
+  from context entirely** and move on without asking. Do not send `[]` and do not
+  substitute the invoice's own printed `company_gstin` as a stand-in list: either makes
+  V-EXT-10 lie — `[]` reads as "I checked the registered GSTINs and there are none",
+  turning a real, correctly-registered invoice red for a reason that has nothing to do
+  with the invoice, and echoing the invoice's own value back makes the check compare a
+  number against itself and always pass. Omitting the key is the honest "I did not look"
+  signal — V-EXT-10 reports Skipped, which is the truth here.
 
-Then call the validation API **once**:
+Then call the validation API **once**. It is a whitelisted method on this same site, so it is
+reached through `jarvis__run_method` — there is no outbound HTTP and no URL to choose:
 
-```json
-{
-  "invoice": { …everything from §2… },
-  "blocks": ["extraction"],
-  "context": {"fiscal_year": …, "company_gstins": [...]}
-}
+```
+jarvis__run_method
+  method: vendor_invoice_automation.api.v1.invoice.validate_invoice
+  args:   {
+            "invoice": { …everything from §2… },
+            "blocks": ["extraction"],
+            "context": {"fiscal_year": …, "company_gstins": [...]}
+          }
 ```
 
-<!-- CALL SITE: replace with whichever outbound-HTTP mechanism this tenant has.
-     The endpoint must come from operator config, never a URL written here or
-     chosen at runtime. See CONTEXT.md in the vendor_invoice_automation repo. -->
+`run_method` is **gated**: the call parks a confirmation card and nothing runs until a human
+clicks Confirm. Say that you are calling this method, then wait. Do not re-send it, and do not
+write anything that assumes what it returned.
+
+The confirmed call's **full return payload comes back to you in the receipt** — `… succeeded.
+Returned: {…}`. Read the response out of that receipt and nowhere else. If the receipt carries
+no payload, the call did not return one: say so, and do not fill the gap from memory.
+
+Pass `args` as real nested objects. `invoice` and `context` are dicts, `blocks` is a list —
+`run_method` calls the method in-process, so JSON-stringifying them is not needed, and an
+unknown key name is rejected outright rather than silently dropped.
 
 **Keep the `invoice_ref` from the response and state it in your reply.** Every later
 invoice-* skill uses it instead of the payload, so all of them validate byte-identically what

@@ -62,17 +62,29 @@ duplicate of itself.
 
 ## 3. Call the API
 
-```json
-{
-  "invoice_ref": "…",
-  "blocks": ["duplicate"],
-  "context": {"existing_invoices": [...], "irn_hits": [...]}
-}
+The API is a whitelisted method on this same site, reached through `jarvis__run_method`:
+
+```
+jarvis__run_method
+  method: vendor_invoice_automation.api.v1.invoice.validate_invoice
+  args:   {
+            "invoice_ref": "…",
+            "blocks": ["duplicate"],
+            "context": {"existing_invoices": [...], "irn_hits": [...]}
+          }
 ```
 
-<!-- CALL SITE: replace with whichever outbound-HTTP mechanism this tenant has.
-     The endpoint must come from operator config, never a URL written here or
-     chosen at runtime. See CONTEXT.md in the vendor_invoice_automation repo. -->
+`run_method` is **gated**: the call parks a confirmation card and nothing runs until a human
+clicks Confirm. Say that you are calling this method, then wait. Do not re-send it, and do not
+write anything that assumes what it returned.
+
+The confirmed call's **full return payload comes back to you in the receipt** — `… succeeded.
+Returned: {…}`. Read the response out of that receipt and nowhere else. If the receipt carries
+no payload, the call did not return one: say so, and do not fill the gap from memory.
+
+Pass `args` as real nested objects. `invoice` and `context` are dicts, `blocks` is a list —
+`run_method` calls the method in-process, so JSON-stringifying them is not needed, and an
+unknown key name is rejected outright rather than silently dropped.
 
 ## 4. Report what came back
 

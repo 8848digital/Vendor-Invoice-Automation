@@ -850,3 +850,35 @@ class TestITC(UnitTestCase):
 			["itc"], context={"inward_supply": {"itc_availability": "Yes"}})["data"]
 
 		self.assertEqual(r["checks"][0]["found"], "Eligible")
+
+
+class TestSkillsCallSite(UnitTestCase):
+	"""The skills reach this API through Jarvis's `run_method`, which resolves the method
+	by dotted name and rejects any arg the signature does not declare. Both are silent
+	renames away from breaking, and nothing else in this repo would notice."""
+
+	def test_the_skills_name_a_method_that_exists_and_is_whitelisted(self):
+		import inspect
+		import re
+		from pathlib import Path
+
+		skills = Path(__file__).parents[2] / "skills"
+		calls = []
+		for f in skills.glob("invoice-*.md"):
+			for m in re.finditer(
+				r"jarvis__run_method\s*\n\s*method:\s*(\S+)\s*\n\s*args:\s*(\{.*?\n\s*\})",
+				f.read_text(),
+				re.S,
+			):
+				calls.append((f.name, m.group(1), m.group(2)))
+
+		self.assertTrue(calls, "no run_method call sites found in skills/")
+
+		for fname, method, args in calls:
+			if not method.startswith("vendor_invoice_automation."):
+				continue  # another app's method; not ours to keep in sync
+			fn = frappe.get_attr(method)
+			frappe.is_whitelisted(fn)
+			params = inspect.signature(fn).parameters
+			for key in re.findall(r'^\s*"(\w+)":', args, re.M):
+				self.assertIn(key, params, f"{fname}: {method} takes no `{key}` argument")
