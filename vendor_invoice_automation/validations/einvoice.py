@@ -83,7 +83,8 @@ def _signature(qr):
 	cert = nic_public_certificate()
 	if not cert:
 		return row("V-FAKE-02", STAGE, ERROR, SKIP,
-			"No NIC public certificate in Vendor Invoice Settings, so the QR signature "
+			"No NIC public certificate in site_config.json "
+			"(`via_nic_public_certificate`), so the QR signature "
 			"cannot be verified. The field checks below still compare the QR against the "
 			"printed document — they catch alteration, not forgery.")
 

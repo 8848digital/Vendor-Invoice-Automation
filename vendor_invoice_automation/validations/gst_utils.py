@@ -6,7 +6,6 @@ into values a check row can carry.
 """
 
 import frappe
-
 from india_compliance.gst_india.doctype.gstin.gstin import get_gstin_status
 from india_compliance.gst_india.utils import is_valid_pan, validate_gstin
 
