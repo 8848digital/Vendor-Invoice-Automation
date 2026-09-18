@@ -59,10 +59,10 @@ One call:
 ```
 jarvis__run_method
   method: vendor_invoice_automation.api.v1.intake.process_invoice
-  args:   {"invoice": { …the extract… }, "file_name": "<attached file name>"}
+  args:   {"invoice": { …the extract… }, "file_name": "{attached file name}"}
 ```
 
-Add `"intake": "<Document Intake name>"` when re-validating a saved record after a
+Add `"intake": "{Document Intake name}"` when re-validating a saved record after a
 correction. From the receipt, keep `data` — you need `data.save` below.
 
 Report as document-intake §5 says, plus one line for `data.resolved` (what the server
@@ -95,7 +95,7 @@ Invoice" for approval — you do not build the invoice. Find it:
 ```
 jarvis__get_list
   doctype: Intake Action
-  filters: {"intake": "<saved record name>", "status": "Pending"}
+  filters: {"intake": "{saved record name}", "status": "Pending"}
   fields:  ["name", "summary", "reason"]
 ```
 
@@ -108,7 +108,7 @@ If the user decides now, one call:
 ```
 jarvis__run_method
   method: vendor_invoice_automation.api.v1.intake.decide_action
-  args:   {"action": "<Intake Action name>", "decision": "Approve", "note": "<the user's words, if any>"}
+  args:   {"action": "{Intake Action name}", "decision": "Approve", "note": "{the user's words, if any}"}
 ```
 
 `decision` is `"Approve"` or `"Reject"`, exactly as the user said — never your own choice.
