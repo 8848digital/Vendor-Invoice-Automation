@@ -1,0 +1,41 @@
+{
+ "add_total_row": 0,
+ "add_translate_data": 0,
+ "columns": [],
+ "creation": "2026-09-17 22:24:57.792782",
+ "disable_prepared_report_automation": 0,
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "doctype_to_sync": [],
+ "filters": [],
+ "generate_csv": 0,
+ "idx": 0,
+ "is_standard": "Yes",
+ "json": "{\"columns\": [[\"name\", \"Document Intake\"], [\"status\", \"Document Intake\"], [\"party\", \"Document Intake\"], [\"tax_id\", \"Document Intake\"], [\"reference_no\", \"Document Intake\"], [\"reference_date\", \"Document Intake\"], [\"against\", \"Document Intake\"], [\"amount\", \"Document Intake\"], [\"exception_type\", \"Document Intake\"], [\"reminder_sent_on\", \"Document Intake\"], [\"inward_supply\", \"Document Intake\"]], \"filters\": [[\"Document Intake\", \"document_type\", \"=\", \"Purchase Invoice\", false], [\"Document Intake\", \"status\", \"=\", \"Vendor Invoice Pending Upload\", false]], \"order_by\": \"`tabDocument Intake`.`creation` desc\", \"add_totals_row\": 0, \"page_length\": 50}",
+ "modified": "2026-09-17 22:24:57.792782",
+ "modified_by": "Administrator",
+ "module": "Vendor Invoice Automation",
+ "name": "Vendor Invoice Pending Upload Report",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "ref_doctype": "Document Intake",
+ "report_name": "Vendor Invoice Pending Upload Report",
+ "report_type": "Report Builder",
+ "roles": [
+  {
+   "role": "Accounts User"
+  },
+  {
+   "role": "Accounts Manager"
+  },
+  {
+   "role": "Purchase User"
+  },
+  {
+   "role": "Purchase Manager"
+  }
+ ],
+ "snapshot_report": 0,
+ "timeout": 0
+}

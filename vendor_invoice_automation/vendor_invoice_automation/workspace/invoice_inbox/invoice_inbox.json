@@ -1,0 +1,370 @@
+{
+ "charts": [],
+ "content": "[{\"id\": \"h1\", \"type\": \"header\", \"data\": {\"text\": \"\\u003cspan class=\\\"h4\\\"\\u003e\\u003cb\\u003eInvoice Inbox\\u003c/b\\u003e\\u003c/span\\u003e\", \"col\": 12}}, {\"id\": \"pa\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Pending Approvals\", \"col\": 3}}, {\"id\": \"c0\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Uploaded Today\", \"col\": 3}}, {\"id\": \"c1\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"OCR Pending\", \"col\": 3}}, {\"id\": \"c2\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"GST Validation Pending\", \"col\": 3}}, {\"id\": \"c3\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"PO Match Pending\", \"col\": 3}}, {\"id\": \"c4\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"GRN Match Pending\", \"col\": 3}}, {\"id\": \"c5\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Workflow Pending\", \"col\": 3}}, {\"id\": \"c6\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Approved Invoices\", \"col\": 3}}, {\"id\": \"c7\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Rejected Invoices\", \"col\": 3}}, {\"id\": \"c8\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Duplicate Invoices\", \"col\": 3}}, {\"id\": \"c9\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Failed OCR\", \"col\": 3}}, {\"id\": \"c10\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Payment Pending\", \"col\": 3}}, {\"id\": \"c11\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Pending Vendor Upload\", \"col\": 3}}, {\"id\": \"h2\", \"type\": \"header\", \"data\": {\"text\": \"\\u003cspan class=\\\"h4\\\"\\u003e\\u003cb\\u003eException Queues\\u003c/b\\u003e\\u003c/span\\u003e\", \"col\": 12}}, {\"id\": \"spa\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Pending Approvals\", \"col\": 3}}, {\"id\": \"s0\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"OCR Failure\", \"col\": 3}}, {\"id\": \"s1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Invalid GSTIN\", \"col\": 3}}, {\"id\": \"s2\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Suspended GST\", \"col\": 3}}, {\"id\": \"s3\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Duplicate\", \"col\": 3}}, {\"id\": \"s4\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Price Mismatch\", \"col\": 3}}, {\"id\": \"s5\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Qty Mismatch\", \"col\": 3}}, {\"id\": \"s6\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Missing GRN\", \"col\": 3}}, {\"id\": \"s7\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Missing PO\", \"col\": 3}}, {\"id\": \"s8\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Invalid HSN\", \"col\": 3}}, {\"id\": \"s9\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Invalid Tax\", \"col\": 3}}, {\"id\": \"s10\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Fraud Suspected\", \"col\": 3}}, {\"id\": \"s11\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"2B Unavailable\", \"col\": 3}}, {\"id\": \"h3\", \"type\": \"header\", \"data\": {\"text\": \"\\u003cspan class=\\\"h4\\\"\\u003e\\u003cb\\u003eReports\\u003c/b\\u003e\\u003c/span\\u003e\", \"col\": 12}}, {\"id\": \"k1\", \"type\": \"card\", \"data\": {\"card_name\": \"Reports\", \"col\": 4}}, {\"id\": \"k2\", \"type\": \"card\", \"data\": {\"card_name\": \"Documents\", \"col\": 4}}]",
+ "creation": "2026-09-17 22:24:58.015586",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "hide_custom": 0,
+ "icon": "file",
+ "idx": 0,
+ "indicator_color": "green",
+ "is_hidden": 0,
+ "label": "Invoice Inbox",
+ "link_type": "DocType",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Reports",
+   "link_count": 0,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Vendor Invoice Register",
+   "link_count": 0,
+   "link_to": "Vendor Invoice Register",
+   "link_type": "Report",
+   "onboard": 0,
+   "report_ref_doctype": "Document Intake",
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Duplicate Invoice Report",
+   "link_count": 0,
+   "link_to": "Duplicate Invoice Report",
+   "link_type": "Report",
+   "onboard": 0,
+   "report_ref_doctype": "Document Intake",
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "GST Exception Report",
+   "link_count": 0,
+   "link_to": "GST Exception Report",
+   "link_type": "Report",
+   "onboard": 0,
+   "report_ref_doctype": "Document Intake",
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Vendor Invoice Pending Upload Report",
+   "link_count": 0,
+   "link_to": "Vendor Invoice Pending Upload Report",
+   "link_type": "Report",
+   "onboard": 0,
+   "report_ref_doctype": "Document Intake",
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "GST Validation Report",
+   "link_count": 0,
+   "link_to": "GST Validation Report",
+   "link_type": "Report",
+   "onboard": 0,
+   "report_ref_doctype": "Document Intake",
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "PO Matching Report",
+   "link_count": 0,
+   "link_to": "PO Matching Report",
+   "link_type": "Report",
+   "onboard": 0,
+   "report_ref_doctype": "Document Intake",
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "GRN Matching Report",
+   "link_count": 0,
+   "link_to": "GRN Matching Report",
+   "link_type": "Report",
+   "onboard": 0,
+   "report_ref_doctype": "Document Intake",
+   "type": "Link"
+  },
+  {
+   "dependencies": "",
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Pending Approval Report",
+   "link_count": 0,
+   "link_to": "Pending Approval Report",
+   "link_type": "Report",
+   "onboard": 0,
+   "report_ref_doctype": "Purchase Invoice",
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "OCR Accuracy Report",
+   "link_count": 0,
+   "link_to": "OCR Accuracy Report",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Workflow Ageing Report",
+   "link_count": 0,
+   "link_to": "Workflow Ageing Report",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Vendor Performance Report",
+   "link_count": 0,
+   "link_to": "Vendor Performance Report",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Documents",
+   "link_count": 0,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Document Intake",
+   "link_count": 0,
+   "link_to": "Document Intake",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Purchase Invoice",
+   "link_count": 0,
+   "link_to": "Purchase Invoice",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "ITC Eligibility (Purchase Reconciliation)",
+   "link_count": 0,
+   "link_to": "Purchase Reconciliation Tool",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Intake Action (approvals)",
+   "link_count": 0,
+   "link_to": "Intake Action",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Intake Rule (check config)",
+   "link_count": 0,
+   "link_to": "Intake Rule",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-09-18 16:02:06.362137",
+ "modified_by": "Administrator",
+ "module": "Vendor Invoice Automation",
+ "name": "Invoice Inbox",
+ "number_cards": [
+  {
+   "label": "Uploaded Today",
+   "number_card_name": "Uploaded Today"
+  },
+  {
+   "label": "OCR Pending",
+   "number_card_name": "OCR Pending"
+  },
+  {
+   "label": "GST Validation Pending",
+   "number_card_name": "GST Validation Pending"
+  },
+  {
+   "label": "PO Match Pending",
+   "number_card_name": "PO Match Pending"
+  },
+  {
+   "label": "GRN Match Pending",
+   "number_card_name": "GRN Match Pending"
+  },
+  {
+   "label": "Workflow Pending",
+   "number_card_name": "Workflow Pending"
+  },
+  {
+   "label": "Approved Invoices",
+   "number_card_name": "Approved Invoices"
+  },
+  {
+   "label": "Rejected Invoices",
+   "number_card_name": "Rejected Invoices"
+  },
+  {
+   "label": "Duplicate Invoices",
+   "number_card_name": "Duplicate Invoices"
+  },
+  {
+   "label": "Failed OCR",
+   "number_card_name": "Failed OCR"
+  },
+  {
+   "label": "Payment Pending",
+   "number_card_name": "Payment Pending"
+  },
+  {
+   "label": "Pending Vendor Upload",
+   "number_card_name": "Pending Vendor Upload"
+  },
+  {
+   "label": "Pending Approvals",
+   "number_card_name": "Pending Approvals"
+  }
+ ],
+ "owner": "Administrator",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 0.0,
+ "shortcuts": [
+  {
+   "doc_view": "List",
+   "label": "OCR Failure",
+   "link_to": "Document Intake",
+   "stats_filter": "[[\"Document Intake\", \"document_type\", \"=\", \"Purchase Invoice\", false], [\"Document Intake\", \"exception_type\", \"=\", \"OCR Failure\", false]]",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "Invalid GSTIN",
+   "link_to": "Document Intake",
+   "stats_filter": "[[\"Document Intake\", \"document_type\", \"=\", \"Purchase Invoice\", false], [\"Document Intake\", \"exception_type\", \"=\", \"Invalid GSTIN\", false]]",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "Suspended GST",
+   "link_to": "Document Intake",
+   "stats_filter": "[[\"Document Intake\", \"document_type\", \"=\", \"Purchase Invoice\", false], [\"Document Intake\", \"exception_type\", \"=\", \"Suspended GST\", false]]",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "Duplicate",
+   "link_to": "Document Intake",
+   "stats_filter": "[[\"Document Intake\", \"document_type\", \"=\", \"Purchase Invoice\", false], [\"Document Intake\", \"exception_type\", \"=\", \"Duplicate\", false]]",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "Price Mismatch",
+   "link_to": "Document Intake",
+   "stats_filter": "[[\"Document Intake\", \"document_type\", \"=\", \"Purchase Invoice\", false], [\"Document Intake\", \"exception_type\", \"=\", \"Price Mismatch\", false]]",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "Qty Mismatch",
+   "link_to": "Document Intake",
+   "stats_filter": "[[\"Document Intake\", \"document_type\", \"=\", \"Purchase Invoice\", false], [\"Document Intake\", \"exception_type\", \"=\", \"Qty Mismatch\", false]]",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "Missing GRN",
+   "link_to": "Document Intake",
+   "stats_filter": "[[\"Document Intake\", \"document_type\", \"=\", \"Purchase Invoice\", false], [\"Document Intake\", \"exception_type\", \"=\", \"Missing GRN\", false]]",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "Missing PO",
+   "link_to": "Document Intake",
+   "stats_filter": "[[\"Document Intake\", \"document_type\", \"=\", \"Purchase Invoice\", false], [\"Document Intake\", \"exception_type\", \"=\", \"Missing PO\", false]]",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "Invalid HSN",
+   "link_to": "Document Intake",
+   "stats_filter": "[[\"Document Intake\", \"document_type\", \"=\", \"Purchase Invoice\", false], [\"Document Intake\", \"exception_type\", \"=\", \"Invalid HSN\", false]]",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "Invalid Tax",
+   "link_to": "Document Intake",
+   "stats_filter": "[[\"Document Intake\", \"document_type\", \"=\", \"Purchase Invoice\", false], [\"Document Intake\", \"exception_type\", \"=\", \"Invalid Tax\", false]]",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "Fraud Suspected",
+   "link_to": "Document Intake",
+   "stats_filter": "[[\"Document Intake\", \"document_type\", \"=\", \"Purchase Invoice\", false], [\"Document Intake\", \"exception_type\", \"=\", \"Fraud Suspected\", false]]",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "2B Unavailable",
+   "link_to": "Document Intake",
+   "stats_filter": "[[\"Document Intake\", \"document_type\", \"=\", \"Purchase Invoice\", false], [\"Document Intake\", \"exception_type\", \"=\", \"2B Unavailable\", false]]",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "Pending Approvals",
+   "link_to": "Intake Action",
+   "stats_filter": "[[\"Intake Action\", \"status\", \"=\", \"Pending\", false]]",
+   "type": "DocType"
+  }
+ ],
+ "standard": 0,
+ "title": "Invoice Inbox",
+ "type": "Workspace"
+}

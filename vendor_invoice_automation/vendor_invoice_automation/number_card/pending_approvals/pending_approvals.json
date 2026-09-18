@@ -1,0 +1,23 @@
+{
+ "creation": "2026-09-18 16:02:05.413644",
+ "currency": "INR",
+ "docstatus": 0,
+ "doctype": "Number Card",
+ "document_type": "Intake Action",
+ "filters_json": "[[\"Intake Action\", \"status\", \"=\", \"Pending\", false]]",
+ "function": "Count",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "Pending Approvals",
+ "modified": "2026-09-18 16:02:05.413644",
+ "modified_by": "Administrator",
+ "module": "Vendor Invoice Automation",
+ "name": "Pending Approvals",
+ "owner": "Administrator",
+ "report_function": "Sum",
+ "show_full_number": 0,
+ "show_percentage_stats": 1,
+ "stats_time_interval": "Daily",
+ "type": "Document Type"
+}

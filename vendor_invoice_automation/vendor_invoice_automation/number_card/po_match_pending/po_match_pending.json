@@ -1,0 +1,23 @@
+{
+ "creation": "2026-09-17 22:24:57.367763",
+ "currency": "INR",
+ "docstatus": 0,
+ "doctype": "Number Card",
+ "document_type": "Document Intake",
+ "filters_json": "[[\"Document Intake\", \"document_type\", \"=\", \"Purchase Invoice\", false], [\"Document Intake\", \"status\", \"=\", \"PO Failed\", false]]",
+ "function": "Count",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "PO Match Pending",
+ "modified": "2026-09-17 22:24:57.367763",
+ "modified_by": "Administrator",
+ "module": "Vendor Invoice Automation",
+ "name": "PO Match Pending",
+ "owner": "Administrator",
+ "report_function": "Sum",
+ "show_full_number": 0,
+ "show_percentage_stats": 0,
+ "stats_time_interval": "Daily",
+ "type": "Document Type"
+}

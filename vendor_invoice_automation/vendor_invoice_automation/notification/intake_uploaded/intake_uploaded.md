@@ -1,0 +1,1 @@
+{{ doc.party or '' }} · {{ doc.reference_no or doc.name }} · {{ doc.status }}{% if doc.exception_type %} · {{ doc.exception_type }}{% endif %}
