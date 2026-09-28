@@ -2,10 +2,10 @@
 name: invoice-extract
 description: >
   Read an attached supplier/vendor invoice (image or PDF) and turn it into the structured
-  payload the vendor-invoice validation API expects. Use when a file that looks like a
-  vendor invoice, purchase invoice or supplier bill arrives in chat or through the File
-  Box. Always the first step — every other invoice-* skill needs the invoice_ref this
-  produces.
+  payload the vendor-invoice validation API expects. Run by document-check (through the
+  doc-purchase-invoice profile), or when the user explicitly asks to extract a vendor
+  invoice. Always the first invoice step — every other invoice-* skill needs the
+  invoice_ref this produces.
 user-invocable: true
 ---
 

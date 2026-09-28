@@ -1,19 +1,20 @@
 # Test fixtures
 
-Three synthetic GST tax invoices for exercising `/invoice-extract` and `/invoice-duplicate`
-end to end. All three come out of `make_test_invoice.py` (needs Pillow — use the bench env,
-`frappe-bench/env/bin/python`).
+Four synthetic GST tax invoices for exercising `/invoice-extract`, `/invoice-fraud` and
+`/invoice-duplicate` end to end. All four come out of `make_test_invoice.py` (needs Pillow —
+use the bench env, `frappe-bench/env/bin/python`).
 
 | File | Invoice no. | Expected outcome |
 | --- | --- | --- |
 | `test-invoice-alpha-systems.png` | ALS/2026-27/0412 | every check that can run, passes |
 | `test-invoice-gst-mismatch.png` | ALS/2026-27/0418 | **V-GST-12/13 Fail** (Error) — verdict red |
+| `test-invoice-wrong-gstin.png` | ALS/2026-27/0425 | **V-FAKE-01 Fail** (Error) — verdict red |
 | `test-invoice-duplicate.png` | ALS/2025-26/0118 | **V-DUP-01 Fail** (Error) — verdict red |
 
-The first two share one supplier, one buyer and one set of line items, so the GST fixture
-differs from the clean one in exactly the thing it tests and nothing else. The duplicate
-fixture is different in kind: it is copied off a Purchase Invoice that is really booked on
-the site, so it is matched against real history rather than a seeded row.
+The first three share one supplier, one buyer and one set of line items, so each failing
+fixture differs from the clean one in exactly the thing it tests and nothing else. The
+duplicate fixture is different in kind: it is copied off a Purchase Invoice that is really
+booked on the site, so it is matched against real history rather than a seeded row.
 
 ## Shared choices
 
@@ -55,7 +56,22 @@ The failure is deliberately *isolated*. The taxable value, the total and the ari
 untouched, so V-EXT-03/04 still pass, and only IGST carries value so the xor in V-EXT-05
 still passes too. Exactly one row goes red, and it is the GST one.
 
-## 3. `test-invoice-duplicate.png` — the duplicate case
+## 3. `test-invoice-wrong-gstin.png` — fails the fraud block
+
+Identical to the clean invoice except for the invoice number, the date, and the one thing
+under test: the printed supplier **GSTIN reads `29AAACI1195H1ZI` instead of the registered
+`27AAACI1195H1ZM`.** Both carry PAN `AAACI1195H` — this is the same legal entity billing
+under a different state's GST registration (Karnataka, not Maharashtra), not an impersonation
+by a different company.
+
+`fraud._gstin_is_the_suppliers` fails it as **V-FAKE-01**, severity Error. Because the PAN
+inside the wrong GSTIN still matches, `fraud._pan_matches` (**V-FAKE-07**) passes — this is
+the "V-FAKE-01 alone" row in `skills/invoice-fraud.md`'s bullet table, not the "V-FAKE-01 and
+V-FAKE-07" one. Run it through `/invoice-fraud` (`blocks: ["intake", "fraud"]`) against the
+`Alpha Systems Ltd` Supplier master, which must carry `gstin: 27AAACI1195H1ZM` for the check
+to have anything to compare against — an empty master `gstin` fails V-INT-06 first instead.
+
+## 4. `test-invoice-duplicate.png` — the duplicate case
 
 This is the **supplier's own bill behind `PUR-INV-2026-90365`**, which is already booked on
 the site (`docstatus: 1`). Every field V-DUP-01 keys on is copied from that record, so the
@@ -136,3 +152,15 @@ whitelisted method is reachable — end-to-end-tested against `test-invoice-alph
 using `_Test Company` / `_Test VIA Supplier` as the GSTIN-matched stand-ins for Alpha Systems
 Ltd / 8848 DIGITAL on a site that lacks the demo names: verdict green, `invoice_ref` minted,
 and `invoice-duplicate` correctly passed clean and failed V-DUP-01 once seeded as booked.
+
+## 5. `test-travel-expense-taxi.png` — routing, not an invoice
+
+A ride-hailing receipt (`render_taxi_receipt` in the same script), for `/document-check`.
+Made out to a person, one trip, a fare and a total paid, no GSTIN pair and no line-item
+table — so it must route to `doc-expense-claim` (there is no separate "travel expense"
+doctype in HRMS; travel is just one `Expense Claim Type` value among others), never
+`doc-purchase-invoice`. Upload it with no message.
+
+The rider prints as `Ritik Sharma`. `V-TE-01` passes only if that is an **Active Employee**
+on the site; otherwise regenerate with `render_taxi_receipt(rider="<a real employee_name>")`.
+Zero or several matches make the skill ask rather than fail.

@@ -10,10 +10,45 @@ frontmatter `name` → `skill_name`, `description` → `description`, body → `
 |---|---|---|
 | `invoice-extract.md` | `extraction` | ready |
 | `invoice-duplicate.md` | `duplicate` | ready |
-| intake, fraud, einvoice, gst, itc, po-match, grn-match | — | not written yet |
+| `invoice-fraud.md` | `intake`, `fraud` | ready |
+| einvoice, gst, itc, po-match, grn-match | — | not written yet |
 
 `macro-invoice-check.md` is not a skill — it is the source of truth for a `Jarvis Macro`
-record that chains `invoice-extract` into `invoice-duplicate`.
+record that chains `invoice-extract` into `invoice-duplicate` and `invoice-fraud`.
+
+## Document types: upload anything, no instruction
+
+`document-check.md` is the entry point for "a file arrived". It reads the pages, lists the
+**`doc-<type>` profiles** with `jarvis__find_skills("doc-")`, picks the one whose description
+fits, loads it with `jarvis__get_skill`, runs its checks and prints every check as one table
+with a red / yellow / green verdict. Nothing is hard-coded: the catalogue is whatever
+`doc-*` skills are installed.
+
+| file | type | checks |
+|---|---|---|
+| `doc-purchase-invoice.md` | Purchase Invoice | the invoice-extract → duplicate → fraud chain |
+| `doc-expense-claim.md` | Employee-reimbursable receipt (travel, food, fuel, medical…) | placeholder `V-EXP-01` only |
+
+Every profile has the same four sections: **Recognise by** (also in the `description`,
+which is all `find_skills` returns), **Extract**, **Checks** (`check_id | check | source |
+severity | how`), **Notes**.
+
+**Where a check lives** — `source` in the checks table:
+
+- `jarvis` — the check is a lookup Jarvis can do with its own read tools (`get_list`,
+  `get_doc`, `resolve_links`). Written into the profile.
+- `api` — the check calls a third party, or does **arithmetic**. Arithmetic goes here even
+  though it is local: the model transcribes, it never adds up (see `invoice-extract` §2).
+  Lives in `validations/` and is reached with `jarvis__run_method`. The only API today is
+  `validate_invoice`; a non-invoice type's first `api` check is when a generic
+  `validate_document(doc_type, …)` gets added.
+
+**Adding a type:** copy `doc-expense-claim.md` to `doc-<type>.md`, rewrite the four
+sections, install it (settings below, but `user_invocable` **off** — profiles are loaded
+by `document-check`, never run on their own). Start the `description` with
+"Document-type profile, loaded by document-check — do not run directly." so it is never
+auto-matched in place of `document-check`. `description` is capped at 500 characters on
+the `Jarvis Custom Skill` doctype — count before pasting into Skill Lab.
 
 ## Installing one
 
