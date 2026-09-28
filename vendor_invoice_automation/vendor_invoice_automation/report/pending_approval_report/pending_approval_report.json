@@ -1,0 +1,41 @@
+{
+ "add_total_row": 0,
+ "add_translate_data": 0,
+ "columns": [],
+ "creation": "2026-09-17 22:24:57.820976",
+ "disable_prepared_report_automation": 0,
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "doctype_to_sync": [],
+ "filters": [],
+ "generate_csv": 0,
+ "idx": 0,
+ "is_standard": "Yes",
+ "json": "{\"columns\": [[\"name\", \"Purchase Invoice\"], [\"supplier\", \"Purchase Invoice\"], [\"bill_no\", \"Purchase Invoice\"], [\"bill_date\", \"Purchase Invoice\"], [\"grand_total\", \"Purchase Invoice\"], [\"workflow_state\", \"Purchase Invoice\"], [\"document_intake\", \"Purchase Invoice\"], [\"modified\", \"Purchase Invoice\"]], \"filters\": [[\"Purchase Invoice\", \"docstatus\", \"=\", 0, false], [\"Purchase Invoice\", \"document_intake\", \"is\", \"set\", false]], \"order_by\": \"`tabPurchase Invoice`.`creation` desc\", \"add_totals_row\": 0, \"page_length\": 50}",
+ "modified": "2026-09-17 22:24:57.820976",
+ "modified_by": "Administrator",
+ "module": "Vendor Invoice Automation",
+ "name": "Pending Approval Report",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "ref_doctype": "Purchase Invoice",
+ "report_name": "Pending Approval Report",
+ "report_type": "Report Builder",
+ "roles": [
+  {
+   "role": "Accounts User"
+  },
+  {
+   "role": "Accounts Manager"
+  },
+  {
+   "role": "Purchase User"
+  },
+  {
+   "role": "Purchase Manager"
+  }
+ ],
+ "snapshot_report": 0,
+ "timeout": 0
+}

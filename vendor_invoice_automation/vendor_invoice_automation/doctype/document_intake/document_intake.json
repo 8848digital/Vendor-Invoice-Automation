@@ -1,0 +1,458 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "format:DI-{YYYY}-{#####}",
+ "creation": "2026-09-17 22:17:14.965575",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "document_type",
+  "profile",
+  "status",
+  "exception_type",
+  "verdict",
+  "review_required",
+  "column_break_status",
+  "company",
+  "uploaded_by",
+  "buyer",
+  "plant",
+  "party_section",
+  "party_type",
+  "party",
+  "tax_id",
+  "column_break_party",
+  "reference_no",
+  "reference_date",
+  "against_type",
+  "against",
+  "matching_mode",
+  "amounts_section",
+  "currency",
+  "taxable_value",
+  "column_break_amounts",
+  "tax_amount",
+  "amount",
+  "itc_status",
+  "extraction_section",
+  "extraction_method",
+  "confidence",
+  "uncertain_fields",
+  "irn",
+  "column_break_extraction",
+  "file",
+  "file_hash",
+  "qr_hash",
+  "intake_ref",
+  "items_section",
+  "items",
+  "checks_section",
+  "checks",
+  "extracted_data",
+  "result_section",
+  "created_doctype",
+  "created_doc",
+  "column_break_result",
+  "inward_supply",
+  "reminder_sent_on"
+ ],
+ "fields": [
+  {
+   "fieldname": "document_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Document Type",
+   "options": "DocType",
+   "reqd": 1
+  },
+  {
+   "fieldname": "profile",
+   "fieldtype": "Data",
+   "label": "Profile",
+   "read_only": 1
+  },
+  {
+   "default": "Uploaded",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Uploaded\nOCR Processing\nOCR Completed\nOCR Failed\nGST Validation\nGST Failed\nPO Matched\nPO Failed\nGRN Matched\nGRN Failed\nDuplicate\nWorkflow\nApproved\nRejected\nPosted\nPayment Pending\nPaid\nVendor Invoice Pending Upload",
+   "reqd": 1
+  },
+  {
+   "fieldname": "exception_type",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "Exception Type"
+  },
+  {
+   "fieldname": "verdict",
+   "fieldtype": "Select",
+   "label": "Verdict",
+   "options": "\ngreen\nyellow\nred"
+  },
+  {
+   "default": "0",
+   "fieldname": "review_required",
+   "fieldtype": "Check",
+   "label": "Review Required"
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break",
+   "label": "Column Break Status"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "default": "__user",
+   "fieldname": "uploaded_by",
+   "fieldtype": "Link",
+   "label": "Uploaded By",
+   "options": "User"
+  },
+  {
+   "fieldname": "buyer",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Buyer",
+   "options": "User"
+  },
+  {
+   "fieldname": "plant",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Plant",
+   "options": "Warehouse"
+  },
+  {
+   "fieldname": "party_section",
+   "fieldtype": "Section Break",
+   "label": "Party & Reference"
+  },
+  {
+   "fieldname": "party_type",
+   "fieldtype": "Link",
+   "label": "Party Type",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "party",
+   "fieldtype": "Dynamic Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Party",
+   "options": "party_type"
+  },
+  {
+   "fieldname": "tax_id",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "GSTIN / Tax ID"
+  },
+  {
+   "fieldname": "column_break_party",
+   "fieldtype": "Column Break",
+   "label": "Column Break Party"
+  },
+  {
+   "fieldname": "reference_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Invoice / Receipt No"
+  },
+  {
+   "fieldname": "reference_date",
+   "fieldtype": "Date",
+   "in_standard_filter": 1,
+   "label": "Invoice / Receipt Date"
+  },
+  {
+   "fieldname": "against_type",
+   "fieldtype": "Link",
+   "label": "Against Type",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "against",
+   "fieldtype": "Dynamic Link",
+   "in_standard_filter": 1,
+   "label": "Against (PO \u2026)",
+   "options": "against_type"
+  },
+  {
+   "fieldname": "matching_mode",
+   "fieldtype": "Data",
+   "label": "Matching Mode",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amounts_section",
+   "fieldtype": "Section Break",
+   "label": "Amounts"
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "taxable_value",
+   "fieldtype": "Currency",
+   "label": "Taxable Value",
+   "options": "currency"
+  },
+  {
+   "fieldname": "column_break_amounts",
+   "fieldtype": "Column Break",
+   "label": "Column Break Amounts"
+  },
+  {
+   "fieldname": "tax_amount",
+   "fieldtype": "Currency",
+   "label": "Tax Amount",
+   "options": "currency"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Grand Total",
+   "options": "currency"
+  },
+  {
+   "fieldname": "itc_status",
+   "fieldtype": "Data",
+   "label": "ITC Status"
+  },
+  {
+   "fieldname": "extraction_section",
+   "fieldtype": "Section Break",
+   "label": "Extraction"
+  },
+  {
+   "fieldname": "extraction_method",
+   "fieldtype": "Select",
+   "label": "Extraction Method",
+   "options": "\nE-Invoice JSON\nQR\nXML\nText PDF\nLLM"
+  },
+  {
+   "fieldname": "confidence",
+   "fieldtype": "Percent",
+   "label": "Confidence"
+  },
+  {
+   "fieldname": "uncertain_fields",
+   "fieldtype": "Small Text",
+   "label": "Uncertain Fields"
+  },
+  {
+   "fieldname": "irn",
+   "fieldtype": "Data",
+   "label": "IRN"
+  },
+  {
+   "fieldname": "column_break_extraction",
+   "fieldtype": "Column Break",
+   "label": "Column Break Extraction"
+  },
+  {
+   "fieldname": "file",
+   "fieldtype": "Attach",
+   "label": "File"
+  },
+  {
+   "fieldname": "file_hash",
+   "fieldtype": "Data",
+   "label": "File Hash",
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "qr_hash",
+   "fieldtype": "Data",
+   "label": "QR Hash",
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "intake_ref",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Intake Ref",
+   "no_copy": 1
+  },
+  {
+   "fieldname": "items_section",
+   "fieldtype": "Section Break",
+   "label": "Items"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Items",
+   "options": "Document Intake Item"
+  },
+  {
+   "fieldname": "checks_section",
+   "fieldtype": "Section Break",
+   "label": "Checks"
+  },
+  {
+   "fieldname": "checks",
+   "fieldtype": "Table",
+   "label": "Checks",
+   "options": "Document Intake Check"
+  },
+  {
+   "fieldname": "extracted_data",
+   "fieldtype": "JSON",
+   "label": "Extracted Data",
+   "read_only": 1
+  },
+  {
+   "fieldname": "result_section",
+   "fieldtype": "Section Break",
+   "label": "Result"
+  },
+  {
+   "fieldname": "created_doctype",
+   "fieldtype": "Link",
+   "label": "Created Doctype",
+   "options": "DocType",
+   "read_only": 1
+  },
+  {
+   "fieldname": "created_doc",
+   "fieldtype": "Dynamic Link",
+   "label": "Created Document",
+   "options": "created_doctype",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_result",
+   "fieldtype": "Column Break",
+   "label": "Column Break Result"
+  },
+  {
+   "fieldname": "inward_supply",
+   "fieldtype": "Link",
+   "label": "GST Inward Supply",
+   "options": "GST Inward Supply",
+   "read_only": 1
+  },
+  {
+   "fieldname": "reminder_sent_on",
+   "fieldtype": "Datetime",
+   "label": "Reminder Sent On",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-17 22:17:14.965575",
+ "modified_by": "Administrator",
+ "module": "Vendor Invoice Automation",
+ "name": "Document Intake",
+ "naming_rule": "Expression (old style)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Purchase Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Purchase User",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR User",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "party,reference_no,tax_id",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "reference_no",
+ "track_changes": 1
+}

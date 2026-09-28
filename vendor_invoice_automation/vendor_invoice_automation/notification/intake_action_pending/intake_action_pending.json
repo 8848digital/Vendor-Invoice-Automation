@@ -1,0 +1,35 @@
+{
+ "attach_files": "",
+ "attach_print": 0,
+ "channel": "System Notification",
+ "condition_type": "Python",
+ "creation": "2026-09-18 16:02:05.796863",
+ "days_in_advance": 0,
+ "docstatus": 0,
+ "doctype": "Notification",
+ "document_type": "Intake Action",
+ "enabled": 1,
+ "event": "New",
+ "idx": 0,
+ "is_standard": 1,
+ "message": "{{ doc.summary }}<br>{{ doc.reason }}",
+ "message_type": "Markdown",
+ "minutes_offset": 0,
+ "modified": "2026-09-18 16:02:05.796863",
+ "modified_by": "Administrator",
+ "module": "Vendor Invoice Automation",
+ "name": "Intake Action Pending",
+ "notification_type": "Alert",
+ "owner": "Administrator",
+ "recipients": [
+  {
+   "receiver_by_role": "Accounts Manager"
+  },
+  {
+   "receiver_by_role": "Purchase Manager"
+  }
+ ],
+ "send_system_notification": 0,
+ "send_to_all_assignees": 0,
+ "subject": "Approval needed: {{ doc.action }} for {{ doc.intake }}"
+}

@@ -9,6 +9,11 @@ app_license = "mit"
 # bodies instead of form-encoded, per-key JSON-stringified values.
 use_json_request_body = True
 
+# `invoice_ref` payloads live in Redis for an hour (api/v1/invoice.py). A global
+# frappe.clear_cache() deletes every site key not listed here, which silently killed refs
+# minutes after minting — and the multi-step invoice-* skills with them.
+persistent_cache_keys = ["via:invoice:*", "via:intake:*"]
+
 # Apps
 # ------------------
 
@@ -304,3 +309,38 @@ require_type_annotated_api_methods = True
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
 
+
+# Document Intake
+# ------------------
+
+fixtures = [{"dt": "Custom Field", "filters": [["name", "in", ["Purchase Invoice-document_intake"]]]}]
+
+permission_query_conditions = {
+	"Document Intake": "vendor_invoice_automation.intake.permissions.query_conditions",
+	"Intake Action": "vendor_invoice_automation.intake.permissions.action_query_conditions",
+}
+
+has_permission = {
+	"Document Intake": "vendor_invoice_automation.intake.permissions.has_permission",
+	"Intake Action": "vendor_invoice_automation.intake.permissions.has_permission",
+}
+
+doc_events = {
+	"Purchase Invoice": {
+		"after_insert": "vendor_invoice_automation.intake.events.purchase_invoice_after_insert",
+		"on_update": "vendor_invoice_automation.intake.events.purchase_invoice_on_update",
+		"on_submit": "vendor_invoice_automation.intake.events.purchase_invoice_on_submit",
+		"on_cancel": "vendor_invoice_automation.intake.events.purchase_invoice_on_cancel",
+	},
+	"Payment Entry": {
+		"on_submit": "vendor_invoice_automation.intake.events.payment_entry_changed",
+		"on_cancel": "vendor_invoice_automation.intake.events.payment_entry_changed",
+	},
+	"Purchase Receipt": {
+		"on_submit": "vendor_invoice_automation.intake.events.purchase_receipt_on_submit",
+	},
+}
+
+scheduler_events = {
+	"daily": ["vendor_invoice_automation.intake.missing.daily"],
+}

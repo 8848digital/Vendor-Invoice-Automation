@@ -1,12 +1,18 @@
 """Render the synthetic GST tax invoice PNGs for testing /invoice-extract.
 
-Three fixtures, one renderer. See README.md for why these particular values were chosen
+Four fixtures, one renderer. See README.md for why these particular values were chosen
 and what each one is expected to do to the pipeline.
 
-    clean      → every check that can run, passes
-    gst-fail   → intra-state supply charged as IGST      → V-GST-12/13 Fail (Error)
-    duplicate  → the supplier's bill for PUR-INV-2026-90365, already booked on the site
-                 → V-DUP-01 Fail (Error)
+    clean        → every check that can run, passes
+    gst-fail     → intra-state supply charged as IGST      → V-GST-12/13 Fail (Error)
+    wrong-gstin  → supplier GSTIN swapped for a same-PAN, other-state one → V-FAKE-01 Fail (Error)
+    duplicate    → the supplier's bill for PUR-INV-2026-90365, already booked on the site
+                   → V-DUP-01 Fail (Error)
+
+Plus one non-invoice fixture for /document-check routing:
+
+    travel-expense-taxi → a cab receipt → routed to doc-expense-claim (no separate
+                           "travel expense" doctype in HRMS; travel is an Expense Claim Type)
 """
 
 import os
@@ -44,7 +50,8 @@ GOODS = [
 
 
 def render(out_name, invoice_no, invoice_date, due_date, copy_label, reference,
-           items, taxable, heads, grand, words, note=None):
+           items, taxable, heads, grand, words, note=None,
+           supplier_gstin="27AAACI1195H1ZM"):
     """One invoice. `heads` is the tax lines under Taxable Value — two @9% for an
     intra-state supply, one IGST @18% for the wrong head, none at all for a nil-rated
     supply."""
@@ -67,7 +74,7 @@ def render(out_name, invoice_no, invoice_date, due_date, copy_label, reference,
     y = 165
     txt(M, y, "Unit 402, Solaris Business Park, Andheri East", "s", MUTED)
     txt(M, y + 24, "Mumbai 400069, Maharashtra, India", "s", MUTED)
-    txt(M, y + 48, "GSTIN: 27AAACI1195H1ZM", "sb")
+    txt(M, y + 48, "GSTIN: " + supplier_gstin, "sb")
     txt(M, y + 72, "PAN: AAACI1195H", "s", MUTED)
     txt(M, y + 96, "State: 27-Maharashtra", "s", MUTED)
 
@@ -170,6 +177,19 @@ FIXTURES = [
          heads=[("IGST @ 18%", "13,338.00")], grand="87,438.00",
          words="Rupees Eighty Seven Thousand Four Hundred Thirty Eight Only"),
 
+    # Same supplier, same everything as the clean invoice, except the printed GSTIN carries
+    # Alpha Systems' own PAN (AAACI1195H) under a Karnataka (29) registration instead of the
+    # Maharashtra (27) one on file — the "same company, different GST registration" case
+    # V-FAKE-01 exists to catch, and not a V-FAKE-07 case (that needs a different PAN).
+    dict(out_name="test-invoice-wrong-gstin.png",
+         invoice_no="ALS/2026-27/0425", invoice_date="02-09-2026", due_date="02-10-2026",
+         copy_label="Original for Recipient",
+         reference=["Contract:   AMC-2026-114", "Currency:   INR"],
+         items=SERVICES, taxable="74,100.00",
+         heads=[("CGST @ 9%", "6,669.00"), ("SGST @ 9%", "6,669.00")], grand="87,438.00",
+         words="Rupees Eighty Seven Thousand Four Hundred Thirty Eight Only",
+         supplier_gstin="29AAACI1195H1ZI"),
+
     # The supplier's own bill behind PUR-INV-2026-90365, which is already booked
     # (docstatus 1) on the site. Date, amount and the single line are copied from that
     # record, so V-DUP-01's four key fields line up against the real history rather than
@@ -196,6 +216,51 @@ for spec in FIXTURES:
     assert lines + sum(_money(v) for _, v in spec["heads"]) == _money(spec["grand"]), spec["out_name"]
     print(render(**spec))
 
+
+def render_taxi_receipt(out_name="test-travel-expense-taxi.png", rider="Ritik Sharma"):
+    """A ride-hailing receipt: made out to a person, a trip and a fare, no GSTIN pair and
+    no line-item table — everything doc-expense-claim recognises and doc-purchase-invoice
+    does not. `rider` must be an Active Employee's name for V-EXP-01 to pass."""
+    w, h = 700, 900
+    img = Image.new("RGB", (w, h), BG)
+    d = ImageDraw.Draw(img)
+    y = 50
+    d.text((w // 2, y), "QuickRide", font=F["h1"], fill=ACCENT, anchor="ma")
+    d.text((w // 2, y + 55), "Trip Receipt", font=F["h2"], fill=INK, anchor="ma")
+    y += 120
+    d.line((50, y, w - 50, y), fill=LINE, width=2)
+    rows = [
+        ("Rider", rider), ("Receipt No.", "QR-TRP-88213407"), ("Date", "09-09-2026"),
+        ("Pickup", "Chhatrapati Shivaji Intl Airport T2, Mumbai"),
+        ("Drop", "Solaris Business Park, Andheri East"),
+        ("Distance", "9.4 km"), ("Duration", "31 min"), ("Vehicle", "Sedan  MH-02-EX-4471"),
+    ]
+    y += 25
+    for k, v in rows:
+        d.text((50, y), k, font=F["s"], fill=MUTED)
+        d.text((230, y), v, font=F["n"], fill=INK)
+        y += 38
+    y += 10
+    d.line((50, y, w - 50, y), fill=LINE, width=2)
+    y += 25
+    for k, v in [("Trip fare", "412.00"), ("Airport fee", "60.00"), ("GST @ 5%", "23.60")]:
+        d.text((50, y), k, font=F["n"], fill=INK)
+        d.text((w - 50, y), "Rs. " + v, font=F["n"], fill=INK, anchor="ra")
+        y += 36
+    d.line((50, y, w - 50, y), fill=LINE, width=2)
+    y += 20
+    d.text((50, y), "Total paid", font=F["big"], fill=INK)
+    d.text((w - 50, y), "Rs. 495.60", font=F["big"], fill=INK, anchor="ra")
+    y += 60
+    d.text((50, y), "Paid by UPI", font=F["s"], fill=MUTED)
+    out = os.path.join(os.path.dirname(os.path.abspath(__file__)), out_name)
+    img.save(out)
+    return out
+
+
+assert _money("412.00") + _money("60.00") + _money("23.60") == _money("495.60")
+print(render_taxi_receipt())
+
 # PUR-INV-2026-90365, the invoice the duplicate fixture is the supplier's copy of.
-assert _money(FIXTURES[2]["grand"]) == 4399.80
-print("arithmetic OK for all three fixtures")
+assert _money(FIXTURES[-1]["grand"]) == 4399.80
+print("arithmetic OK for all fixtures")

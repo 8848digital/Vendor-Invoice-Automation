@@ -1,0 +1,34 @@
+{
+ "attach_files": "",
+ "attach_print": 0,
+ "channel": "System Notification",
+ "condition": "doc.status == 'GST Failed'",
+ "condition_type": "Python",
+ "creation": "2026-09-17 22:24:57.610646",
+ "days_in_advance": 0,
+ "docstatus": 0,
+ "doctype": "Notification",
+ "document_type": "Document Intake",
+ "enabled": 1,
+ "event": "Value Change",
+ "idx": 0,
+ "is_standard": 1,
+ "message": "{{ doc.party or '' }} \u00b7 {{ doc.reference_no or doc.name }} \u00b7 {{ doc.status }}{% if doc.exception_type %} \u00b7 {{ doc.exception_type }}{% endif %}",
+ "message_type": "Markdown",
+ "minutes_offset": 0,
+ "modified": "2026-09-17 22:24:57.610646",
+ "modified_by": "Administrator",
+ "module": "Vendor Invoice Automation",
+ "name": "Intake GST Failed",
+ "notification_type": "Alert",
+ "owner": "Administrator",
+ "recipients": [
+  {
+   "receiver_by_document_field": "uploaded_by"
+  }
+ ],
+ "send_system_notification": 0,
+ "send_to_all_assignees": 0,
+ "subject": "GST validation failed for {{ doc.reference_no }}: {{ doc.exception_type }}",
+ "value_changed": "status"
+}

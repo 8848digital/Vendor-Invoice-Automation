@@ -1,0 +1,21 @@
+{
+ "creation": "2026-09-24 00:00:00.000000",
+ "doctype": "Number Card",
+ "document_type": "TransBnk Call Log",
+ "dynamic_filters_json": "[]",
+ "filters_json": "[[\"TransBnk Call Log\",\"creation\",\"Timespan\",\"today\"]]",
+ "function": "Count",
+ "idx": 0,
+ "is_public": 1,
+ "is_standard": 1,
+ "label": "TransBnk Calls Today",
+ "modified": "2026-09-24 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Vendor Invoice Automation",
+ "name": "TransBnk Calls Today",
+ "owner": "Administrator",
+ "show_full_number": 0,
+ "show_percentage_stats": 0,
+ "stats_time_interval": "Daily",
+ "type": "Document Type"
+}
