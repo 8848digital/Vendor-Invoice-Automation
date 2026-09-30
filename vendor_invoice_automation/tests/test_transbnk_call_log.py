@@ -20,9 +20,16 @@ def _fake_settings():
 	settings = MagicMock()
 	settings.environment = "UAT"
 	settings.uat_base_url = "https://sandbox-api.trusthub.in"
-	settings.hop_url = "https://hop.example.com"
+	settings.use_hop = True
 	settings.get_password.return_value = "secret"
 	return settings
+
+
+def _fake_hop_settings():
+	hop_settings = MagicMock()
+	hop_settings.hop_url = "https://hop.example.com"
+	hop_settings.get_password.return_value = "secret"
+	return hop_settings
 
 
 class TestTransBnkCallLog(UnitTestCase):
@@ -35,7 +42,8 @@ class TestTransBnkCallLog(UnitTestCase):
 
 		with (
 			patch.object(transbnk, "_settings", return_value=_fake_settings()),
-			patch.object(transbnk.requests, "post", return_value=response),
+			patch.object(transbnk.hop.frappe, "get_single", return_value=_fake_hop_settings()),
+			patch.object(transbnk.hop.requests, "post", return_value=response),
 		):
 			transbnk.call("/pan-details", {})
 
@@ -52,7 +60,8 @@ class TestTransBnkCallLog(UnitTestCase):
 
 		with (
 			patch.object(transbnk, "_settings", return_value=_fake_settings()),
-			patch.object(transbnk.requests, "post", return_value=response),
+			patch.object(transbnk.hop.frappe, "get_single", return_value=_fake_hop_settings()),
+			patch.object(transbnk.hop.requests, "post", return_value=response),
 		):
 			with self.assertRaises(transbnk.TransBnkError):
 				transbnk.call("/pan-details", {})

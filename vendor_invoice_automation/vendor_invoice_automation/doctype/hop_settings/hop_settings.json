@@ -1,0 +1,48 @@
+{
+ "actions": [],
+ "creation": "2026-09-28 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "hop_url",
+  "hop_token"
+ ],
+ "fields": [
+  {
+   "description": "Shared whitelisted relay server. Any integration whose third party requires IP whitelisting proxies its calls through this URL instead of calling out directly.",
+   "fieldname": "hop_url",
+   "fieldtype": "Data",
+   "label": "HOP URL"
+  },
+  {
+   "description": "Bearer token for the HOP server.",
+   "fieldname": "hop_token",
+   "fieldtype": "Password",
+   "label": "HOP Token"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-09-28 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Vendor Invoice Automation",
+ "name": "HOP Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

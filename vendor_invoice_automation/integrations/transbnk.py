@@ -1,19 +1,16 @@
 """Thin authenticated client for TransBnk (trusthub.in) verification APIs.
 
-TransBnk requires IP whitelisting, so instead of calling trusthub.in directly this
-module proxies every call through a whitelisted HOP server: the HOP server receives
-the target URL/method/headers/payload as its own JSON body, and it is the one whose
-IP is whitelisted with TransBnk. This module is the only place that knows any of that.
-Callers go through `vendor_invoice_automation.api.v1.onboarding`, which maps a logical
-endpoint key (from `TRANSBNK_ENDPOINTS`) to the `path` this function actually calls.
+TransBnk requires IP whitelisting, so by default this module proxies every call through
+the whitelisted HOP relay (see `integrations.hop`) rather than calling trusthub.in directly.
+`TransBnk Settings.use_hop` controls that per this integration — flip it off only if the
+calling bench's own egress IP is itself whitelisted with TransBnk. Callers go through
+`vendor_invoice_automation.api.v1.onboarding`, which maps a logical endpoint key (from
+`TRANSBNK_ENDPOINTS`) to the `path` this function actually calls.
 """
 
-import time
-
 import frappe
-import requests
 
-TIMEOUT = 30
+from vendor_invoice_automation.integrations import hop
 
 
 class TransBnkError(frappe.ValidationError):
@@ -26,10 +23,6 @@ def _settings():
 		frappe.throw("TransBnk Settings is disabled.", TransBnkError)
 	if not settings.get_password("api_key", raise_exception=False):
 		frappe.throw("TransBnk Settings has no API key configured.", TransBnkError)
-	if not settings.hop_url:
-		frappe.throw("TransBnk Settings has no HOP URL configured.", TransBnkError)
-	if not settings.get_password("hop_token", raise_exception=False):
-		frappe.throw("TransBnk Settings has no HOP token configured.", TransBnkError)
 	return settings
 
 
@@ -53,10 +46,10 @@ def _log_call(endpoint: str, method: str, error: str | None, duration_ms: int) -
 
 
 def call(path: str, payload: dict, method: str = "POST") -> dict:
-	"""Send `payload` to a TransBnk endpoint path (e.g. "/pan-details") via the HOP
-	proxy and return the parsed JSON body. Raises TransBnkError on a transport failure,
-	a non-JSON body, or a non-2xx response — callers never see a raw `requests`
-	exception."""
+	"""Send `payload` to a TransBnk endpoint path (e.g. "/pan-details"), via the HOP
+	proxy unless `use_hop` is off, and return the parsed JSON body. Raises TransBnkError
+	on a transport failure, a non-JSON body, or a non-2xx response — callers never see
+	a raw `requests` exception."""
 	settings = _settings()
 	base = settings.uat_base_url if settings.environment == "UAT" else settings.prod_base_url
 	target_url = base.rstrip("/") + path
@@ -65,32 +58,9 @@ def call(path: str, payload: dict, method: str = "POST") -> dict:
 		"Content-Type": "application/json",
 	}
 
-	started = time.monotonic()
-	error = None
-	body = None
+	body, error, duration_ms = hop.call(target_url, method, target_headers, payload, use_hop=settings.use_hop)
 
-	try:
-		response = requests.post(
-			settings.hop_url,
-			headers={
-				"Authorization": f"Bearer {settings.get_password('hop_token')}",
-				"Content-Type": "application/json",
-			},
-			json={"url": target_url, "method": method, "headers": target_headers, "payload": payload},
-			timeout=TIMEOUT,
-		)
-	except requests.RequestException as e:
-		error = f"HOP request to {path} failed: {e}"
-	else:
-		try:
-			body = response.json()
-		except ValueError:
-			error = f"HOP {path} returned a non-JSON response ({response.status_code})."
-		else:
-			if not response.ok:
-				error = f"HOP {path} returned {response.status_code}: {body}"
-
-	_log_call(path, method, error, int((time.monotonic() - started) * 1000))
+	_log_call(path, method, error, duration_ms)
 
 	if error:
 		frappe.throw(error, TransBnkError)

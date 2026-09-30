@@ -4,7 +4,7 @@
 from frappe.model.document import Document
 
 
-class TransBnkSettings(Document):
+class HOPSettings(Document):
 	# begin: auto-generated types
 	# This code is auto-generated. Do not modify anything in this block.
 
@@ -13,12 +13,8 @@ class TransBnkSettings(Document):
 	if TYPE_CHECKING:
 		from frappe.types import DF
 
-		api_key: DF.Password | None
-		enabled: DF.Check
-		environment: DF.Literal["UAT", "Production"]
-		prod_base_url: DF.Data | None
-		uat_base_url: DF.Data | None
-		use_hop: DF.Check
+		hop_token: DF.Password | None
+		hop_url: DF.Data | None
 	# end: auto-generated types
 
-	_DOCTYPE_NAME = "TransBnk Settings"
+	_DOCTYPE_NAME = "HOP Settings"

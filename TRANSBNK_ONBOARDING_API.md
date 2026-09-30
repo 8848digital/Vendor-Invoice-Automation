@@ -36,6 +36,7 @@ is card/GPR issuance, which uses a different auth contract.
 | `api_key` | Password field. Sent as `x-api-key` on every call. Issued by TransBnk after activation **and IP whitelisting of the server** |
 | `uat_base_url` | default `https://sandbox-api.trusthub.in` |
 | `prod_base_url` | default `https://api.trusthub.in` |
+| `use_hop` | Default on. Proxies every call through the relay configured in `HOP Settings` (shared across integrations) instead of calling trusthub.in directly. Turn off only if the calling server's own IP is itself whitelisted with TransBnk. |
 
 Only `System Manager` can edit it. The key never appears in a response.
 
