@@ -10,9 +10,7 @@
   "column_break_1",
   "uat_base_url",
   "prod_base_url",
-  "hop_url",
-  "column_break_2",
-  "hop_token"
+  "use_hop"
  ],
  "fields": [
   {
@@ -52,20 +50,11 @@
    "label": "Production Base URL"
   },
   {
-   "description": "TransBnk requires IP whitelisting, so calls are proxied through this whitelisted HOP server instead of calling trusthub.in directly.",
-   "fieldname": "hop_url",
-   "fieldtype": "Data",
-   "label": "HOP URL"
-  },
-  {
-   "fieldname": "column_break_2",
-   "fieldtype": "Column Break"
-  },
-  {
-   "description": "Bearer token for the HOP server.",
-   "fieldname": "hop_token",
-   "fieldtype": "Password",
-   "label": "HOP Token"
+   "default": "1",
+   "description": "TransBnk requires IP whitelisting. Leave this on to proxy calls through the relay configured in HOP Settings; turn it off only if this bench's own egress IP is itself whitelisted with TransBnk.",
+   "fieldname": "use_hop",
+   "fieldtype": "Check",
+   "label": "Use HOP"
   }
  ],
  "index_web_pages_for_search": 1,
